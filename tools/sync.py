@@ -7,15 +7,36 @@
 규칙
 - 원본 폴더는 절대 고치지 않는다. 읽어서 games/<slug>/ 로 복사만 한다.
 - 복사 전에 games/<slug>/ 를 비우므로, 한 작품의 갱신이 다른 작품에 영향을 주지 않는다.
-- "inject" 에 적힌 공용 스크립트는 복사본의 <head> 에만 끼워 넣는다.
+- 모든 복사본의 <head> 맨 앞에 보안 설정(CSP, Referrer-Policy)을 넣는다.
+- "inject" 에 적힌 공용 스크립트, "replace" 에 적힌 글자 바꾸기는 복사본에만 적용한다.
 """
 import json
+import re
 import shutil
 import sys
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
 GAMES = ROOT / "games"
+
+# 보안 설정: 게임이 이 사이트 파일과 구글 글꼴 말고는 아무 데도 접속하거나 보내지 못하게 막는다.
+# (첫 화면 index.html 에도 같은 값이 들어 있다. 바꿀 때는 둘 다 바꿀 것)
+CSP = (
+    "default-src 'self'; "
+    "script-src 'self' 'unsafe-inline'; "
+    "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; "
+    "font-src 'self' https://fonts.gstatic.com data:; "
+    "img-src 'self' data: blob:; "
+    "media-src 'self' data: blob:; "
+    "connect-src 'self'; "
+    "object-src 'none'; "
+    "base-uri 'self'; "
+    "form-action 'none'"
+)
+SECURITY_META = [
+    f'<meta http-equiv="Content-Security-Policy" content="{CSP}">',
+    '<meta name="referrer" content="strict-origin-when-cross-origin">',
+]
 
 
 def copy_work(work: dict) -> None:
@@ -41,27 +62,38 @@ def copy_work(work: dict) -> None:
 
     page = dst / "index.html"
     html = page.read_text(encoding="utf-8")
+
+    for old, new in work.get("replace", {}).items():
+        if old not in html:
+            print(f"[{slug}] 주의: 바꿀 글자 '{old}' 를 찾지 못했어요")
+        html = html.replace(old, new)
+
     low = html.lower()
-    # claude.ai 아티팩트로 만든 게임은 문서 머리(doctype, charset, viewport)가 없어서 채워 준다
     head = []
-    if "<!doctype" not in low[:200]:
-        head.append('<!doctype html>\n<html lang="ko">')
     if "charset" not in low:
         head.append('<meta charset="utf-8">')
+    head += SECURITY_META
     if 'name="viewport"' not in low:
         head.append('<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">')
     head += [f'<script src="../../{s}"></script>' for s in work.get("inject", [])]
-    if head:
-        i = low.find("<head>")
-        if i >= 0 and "<!doctype" in low[:200]:
-            i += len("<head>")
-            html = html[:i] + "\n" + "\n".join(head) + html[i:]
-        else:
-            html = "\n".join(head) + "\n" + html
-        page.write_text(html, encoding="utf-8")
+    block = "\n".join(head) + "\n"
 
+    m_head = re.search(r"<head(\s[^>]*)?>", html, re.I)  # <header> 와 헷갈리지 않게
+    m_doctype = re.match(r"\s*<!doctype[^>]*>", html, re.I)
+    if m_head:
+        # 이미 있는 charset 보다 앞에 오면 안 되므로, charset 줄이 있으면 그 뒤에 넣는다
+        m_cs = re.search(r"<meta[^>]*charset[^>]*>", html, re.I)
+        at = m_cs.end() if m_cs and m_cs.start() > m_head.end() else m_head.end()
+        html = html[:at] + "\n" + block + html[at:]
+    elif m_doctype:
+        html = html[:m_doctype.end()] + '\n<html lang="ko">\n' + block + html[m_doctype.end():]
+    else:
+        # claude.ai 아티팩트로 만든 게임은 문서 머리(doctype)가 없어서 채워 준다
+        html = '<!doctype html>\n<html lang="ko">\n' + block + html
+
+    page.write_text(html, encoding="utf-8")
     size = sum(f.stat().st_size for f in dst.rglob("*") if f.is_file())
-    print(f"[{slug}] 복사 완료 ({size / 1024 / 1024:.1f}MB) <- {src}")
+    print(f"[{slug}] 복사 완료 ({size / 1024 / 1024:.1f}MB) <- {src.name}")
 
 
 def main() -> None:

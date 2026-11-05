@@ -12,7 +12,8 @@
       "summary": "숲·얼음 동굴·화산 9개 스테이지를 뛰어넘으며 코인을 모아요. 모은 코인으로 상점에서 색과 모자를 사요.",
       "source": "../coin-jump",
       "files": ["index.html"],
-      "inject": ["shared/local-records.js"]
+      "inject": ["shared/local-records.js"],
+      "replace": { "placeholder=\"예: 점프왕혜진\"": "placeholder=\"예: 점프왕\"" }
     },
     {
       "slug": "sky-fighter",
@@ -24,7 +25,8 @@
       "summary": "하늘을 나는 세로 슈팅 게임. 3개 스테이지 끝에서 열기구, 폭격기, 비행선 보스와 싸워요.",
       "source": "../sky-fighter",
       "files": ["index.html"],
-      "inject": ["shared/local-records.js"]
+      "inject": ["shared/local-records.js"],
+      "replace": { "placeholder=\"예: 에이스혜진\"": "placeholder=\"예: 에이스\"" }
     },
     {
       "slug": "word-chain",
