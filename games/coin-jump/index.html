@@ -1,0 +1,1414 @@
+<!doctype html>
+<html lang="ko">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<script src="../../shared/local-records.js"></script>
+<title>코인 점프</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Gowun+Dodum&family=Jua&display=swap">
+<style>
+/* 레이아웃: 왼쪽은 게임 화면(캔버스 + 오버레이), 오른쪽은 코인 랭킹. 좁으면 한 줄로 쌓는다.
+   게임은 밤 숲 하나의 분위기로 고정한 단일 테마. */
+:root {
+  --bg: #12201a;
+  --panel: #1b2f24;
+  --line: #2d4a38;
+  --ink: #f2eedb;
+  --muted: #a8b8a0;
+  --gold: #f5c518;
+  --gold-ink: #2a1d00;
+  --leaf: #74c56b;
+  --ice: #8fd3f4;
+  --lava: #ff7b54;
+  --display: 'Jua', 'Gowun Dodum', system-ui, sans-serif;
+  --body: 'Gowun Dodum', system-ui, sans-serif;
+  color-scheme: dark;
+}
+[hidden] { display: none !important; }
+html, body { background: var(--bg); color: var(--ink); }
+body { font-family: var(--body); font-size: 15px; line-height: 1.55; }
+.app {
+  max-width: 1180px; margin: 0 auto; display: grid; gap: 16px;
+  padding-block: 20px 40px;
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+}
+header { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 6px 20px; }
+h1 { font-family: var(--display); font-weight: 400; font-size: clamp(30px, 4vw, 42px); margin: 0; line-height: 1.1; text-wrap: balance; }
+h1 span { color: var(--gold); }
+.stats { display: flex; flex-wrap: wrap; gap: 4px 16px; color: var(--muted); font-variant-numeric: tabular-nums; }
+.stats b { color: var(--ink); }
+.stats .coin { display: inline-block; width: .8em; height: .8em; border-radius: 50%; background: var(--gold); box-shadow: inset -2px -2px 0 #c48f00; vertical-align: -1px; margin-right: 4px; }
+
+.layout { display: grid; grid-template-columns: minmax(0, 1fr) 290px; gap: 20px; align-items: start; }
+@media (max-width: 900px) { .layout { grid-template-columns: minmax(0, 1fr); } }
+.play { display: grid; gap: 10px; min-width: 0; }
+
+.screen { position: relative; border-radius: 14px; overflow: hidden; background: #9fd8e8; box-shadow: 0 0 0 2px var(--line), 0 18px 40px rgba(0,0,0,.35); outline: none; }
+.screen:focus-visible { box-shadow: 0 0 0 3px var(--gold); }
+#game { display: block; width: 100%; max-width: 100%; aspect-ratio: 25 / 14; }
+.overlay { position: absolute; inset: 0; display: grid; place-items: center; padding: 16px; background: rgba(10, 22, 15, .5); overflow: auto; }
+.card { background: var(--panel); border: 1px solid var(--line); border-radius: 16px; padding: 22px 24px; width: min(480px, 100%); display: grid; gap: 14px; }
+.card.wide { width: min(560px, 100%); }
+.card h2 { font-family: var(--display); font-weight: 400; font-size: 30px; margin: 0; line-height: 1.15; text-wrap: balance; }
+.eyebrow { margin: 0; color: var(--muted); font-size: 13px; letter-spacing: .08em; }
+.hint { margin: 0; color: var(--muted); font-size: 14px; }
+@media (max-width: 640px) {
+  .screen { overflow: visible; background: var(--panel); }
+  #game { border-radius: 14px 14px 0 0; }
+  .overlay { position: static; background: var(--panel); border-radius: 0 0 14px 14px; padding: 18px 16px; }
+  .card { border: 0; padding: 0; background: none; width: 100%; }
+}
+
+form { display: grid; gap: 8px; margin: 0; }
+label { font-size: 14px; color: var(--muted); }
+.row { display: flex; gap: 8px; flex-wrap: wrap; }
+input[type="text"] { font: inherit; font-size: 16px; background: var(--bg); color: var(--ink); border: 1.5px solid var(--line); border-radius: 10px; padding: 10px 12px; min-width: 0; flex: 1 1 180px; }
+input[type="text"]:focus { border-color: var(--gold); outline: none; }
+.btn { font-family: var(--display); font-size: 17px; background: var(--gold); color: var(--gold-ink); border: 0; border-radius: 10px; padding: 10px 18px; cursor: pointer; }
+.btn:hover { filter: brightness(1.06); }
+.btn.ghost { background: transparent; color: var(--ink); box-shadow: inset 0 0 0 1.5px var(--line); }
+.btn:focus-visible, .lvl:focus-visible, .link:focus-visible { outline: 3px solid var(--gold); outline-offset: 2px; }
+.link { background: none; border: 0; padding: 0; color: var(--muted); font: inherit; font-size: 14px; text-decoration: underline; cursor: pointer; justify-self: start; }
+.error { color: var(--lava); font-size: 14px; margin: 0; }
+
+.maps { display: grid; gap: 10px; }
+.maprow { display: grid; grid-template-columns: 82px repeat(3, minmax(0, 1fr)); gap: 8px; align-items: center; }
+.mapname { font-family: var(--display); font-size: 18px; }
+.mapname small { display: block; font-family: var(--body); font-size: 12px; color: var(--muted); line-height: 1.3; }
+.lvl { font: inherit; text-align: left; border-radius: 10px; padding: 8px 10px; border: 1.5px solid var(--line); background: var(--bg); color: var(--ink); cursor: pointer; display: grid; gap: 1px; min-width: 0; }
+.lvl b { font-family: var(--display); font-weight: 400; font-size: 17px; }
+.lvl span { font-size: 12px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.lvl.ready { border-color: var(--gold); }
+.lvl.ready span { color: var(--gold); }
+.lvl.done { border-color: var(--leaf); }
+.lvl.done span { color: var(--leaf); }
+.lvl:disabled { cursor: default; opacity: .5; }
+@media (max-width: 420px) { .maprow { grid-template-columns: repeat(3, minmax(0, 1fr)); } .mapname { grid-column: 1 / -1; } }
+
+.row.mid { align-items: center; gap: 16px; }
+.shophead { display: flex; justify-content: space-between; align-items: center; gap: 12px; }
+.purse { font-family: var(--display); font-size: 22px; font-variant-numeric: tabular-nums; }
+.purse .coin { display: inline-block; width: .75em; height: .75em; border-radius: 50%; background: var(--gold); box-shadow: inset -2px -2px 0 #c48f00; margin-right: 6px; }
+.shop { display: grid; grid-template-columns: 150px minmax(0, 1fr); gap: 16px; }
+@media (max-width: 520px) { .shop { grid-template-columns: minmax(0, 1fr); } }
+.try { display: grid; gap: 8px; align-content: start; justify-items: center; text-align: center; }
+#tryOn { width: 150px; height: auto; aspect-ratio: 32 / 28; max-width: 100%; border-radius: 12px; background: var(--bg); }
+.try .btn { width: 100%; }
+.try .btn:disabled { background: var(--line); color: var(--muted); cursor: default; filter: none; }
+.items { display: grid; gap: 6px; min-width: 0; }
+.items h3 { font-family: var(--display); font-weight: 400; font-size: 16px; margin: 0; color: var(--muted); }
+.grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6px; }
+.item { font: inherit; display: grid; grid-template-columns: 36px minmax(0, 1fr); gap: 6px; align-items: center; text-align: left; padding: 4px 8px 4px 4px; border-radius: 10px; border: 1.5px solid var(--line); background: var(--bg); color: var(--ink); cursor: pointer; min-width: 0; }
+.item canvas { display: block; width: 36px; height: 34px; }
+.item div { min-width: 0; display: grid; }
+.item b { font-weight: 400; font-size: 13px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.item span { font-size: 11px; color: var(--gold); white-space: nowrap; }
+.item.own span { color: var(--muted); }
+.item.on span { color: var(--leaf); }
+.item.sel { border-color: var(--gold); }
+.item.on { border-color: var(--leaf); }
+.item:focus-visible { outline: 3px solid var(--gold); outline-offset: 2px; }
+.result { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
+.result div { background: var(--bg); border-radius: 10px; padding: 10px 12px; display: grid; }
+.result small { color: var(--muted); font-size: 12px; }
+.result b { font-family: var(--display); font-weight: 400; font-size: 24px; font-variant-numeric: tabular-nums; }
+
+.touch { display: none; justify-content: space-between; gap: 10px; user-select: none; -webkit-user-select: none; }
+.touch div { display: flex; gap: 10px; }
+.touch button { font-family: var(--display); font-size: 20px; width: 72px; height: 60px; border-radius: 14px; border: 1.5px solid var(--line); background: var(--panel); color: var(--ink); touch-action: none; }
+.touch button.jump { width: 120px; background: var(--gold); color: var(--gold-ink); border: 0; }
+.touch button.on { filter: brightness(1.3); }
+@media (pointer: coarse) { .touch { display: flex; } }
+.keys { margin: 0; color: var(--muted); font-size: 14px; }
+kbd { font-family: var(--body); font-size: 13px; background: var(--panel); border: 1px solid var(--line); border-bottom-width: 2px; border-radius: 6px; padding: 1px 7px; color: var(--ink); }
+
+.rank { background: var(--panel); border: 1px solid var(--line); border-radius: 14px; padding: 18px; display: grid; gap: 10px; min-width: 0; }
+.rank h2 { font-family: var(--display); font-weight: 400; font-size: 22px; margin: 0; }
+.rank ol { list-style: none; margin: 0; padding: 0; display: grid; gap: 2px; }
+.rank li { display: grid; grid-template-columns: 28px minmax(0, 1fr) auto; gap: 8px; align-items: center; padding: 7px 8px; border-radius: 8px; font-variant-numeric: tabular-nums; }
+.rank li .no { font-family: var(--display); color: var(--muted); }
+.rank li:nth-child(1) .no { color: var(--gold); }
+.rank li .nm { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.rank li .pt { font-family: var(--display); }
+.rank li.me { background: rgba(245, 197, 24, .12); box-shadow: inset 0 0 0 1px rgba(245, 197, 24, .4); }
+.rank .note { margin: 0; color: var(--muted); font-size: 13px; }
+@media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
+</style>
+
+<div class="app">
+  <header>
+    <h1>코인 점프<span>.</span></h1>
+    <div class="stats" aria-live="polite">
+      <span id="whoLabel">닉네임 없음</span>
+      <span><i class="coin"></i>지갑 <b id="walletN">0</b></span>
+      <span>총 모은 코인 <b id="totalN">0</b></span>
+    </div>
+  </header>
+
+  <main class="layout">
+    <section class="play">
+      <div class="screen" id="screen" tabindex="0" aria-label="게임 화면">
+        <canvas id="game" width="800" height="448"></canvas>
+
+        <div class="overlay" id="ovTitle">
+          <div class="card">
+            <p class="eyebrow">숲 · 얼음 동굴 · 화산</p>
+            <h2>발판을 건너 깃발까지</h2>
+            <form id="nickForm" novalidate>
+              <label for="nick">랭킹에 올릴 닉네임 (최대 10자)</label>
+              <div class="row">
+                <input type="text" id="nick" maxlength="10" autocomplete="off" placeholder="예: 점프왕혜진">
+                <button class="btn" type="submit">시작하기</button>
+              </div>
+              <p class="error" id="nickError" hidden>닉네임을 한 글자 이상 입력해 주세요.</p>
+            </form>
+            <p class="hint">← → 로 움직이고 스페이스로 점프해요. 코인을 모으고 🚩 깃발에 닿으면 클리어!</p>
+          </div>
+        </div>
+
+        <div class="overlay" id="ovSelect" hidden>
+          <div class="card wide">
+            <h2>스테이지 선택</h2>
+            <div class="maps" id="maps"></div>
+            <div class="row mid">
+              <button class="btn ghost" type="button" id="openShop">상점 가기</button>
+              <button class="link" type="button" id="changeNick">닉네임 바꾸기</button>
+            </div>
+          </div>
+        </div>
+
+        <div class="overlay" id="ovShop" hidden>
+          <div class="card wide">
+            <div class="shophead">
+              <h2>상점</h2>
+              <span class="purse"><i class="coin"></i><b id="shopWallet">0</b></span>
+            </div>
+            <div class="shop">
+              <div class="try">
+                <canvas id="tryOn" width="320" height="280" aria-label="입어 보기 미리보기"></canvas>
+                <p class="hint" id="tryText">아이템을 누르면 먼저 입어 볼 수 있어요.</p>
+                <button class="btn" type="button" id="buyBtn" hidden>구매하기</button>
+              </div>
+              <div class="items">
+                <h3>색깔</h3>
+                <div class="grid" id="colorGrid"></div>
+                <h3>모자</h3>
+                <div class="grid" id="hatGrid"></div>
+              </div>
+            </div>
+            <button class="link" type="button" id="shopBack">스테이지 선택으로 돌아가기</button>
+          </div>
+        </div>
+
+        <div class="overlay" id="ovClear" hidden>
+          <div class="card">
+            <p class="eyebrow" id="clearStage">숲 Lv.1</p>
+            <h2>클리어!</h2>
+            <div class="result">
+              <div><small>모은 코인</small><b id="rCoins">0</b></div>
+              <div><small>걸린 시간</small><b id="rTime">0.0초</b></div>
+              <div><small>지갑</small><b id="rWallet">0</b></div>
+            </div>
+            <p class="hint" id="rNext"></p>
+            <div class="row">
+              <button class="btn" type="button" id="againBtn">다시 하기</button>
+              <button class="btn ghost" type="button" id="toSelectBtn">스테이지 선택</button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="touch" id="touch" aria-hidden="true">
+        <div>
+          <button type="button" data-key="left">◀</button>
+          <button type="button" data-key="right">▶</button>
+        </div>
+        <button type="button" class="jump" data-key="jump">점프</button>
+      </div>
+      <p class="keys"><kbd>←</kbd> <kbd>→</kbd> 이동 · <kbd>Space</kbd> 점프 · <kbd>Esc</kbd> 스테이지 선택</p>
+    </section>
+
+    <aside class="rank" aria-labelledby="rankTitle">
+      <h2 id="rankTitle">코인 랭킹</h2>
+      <p class="note">지금까지 모은 코인 합계 순이에요. 상점에서 코인을 써도 랭킹 점수는 줄지 않아요.</p>
+      <ol id="rankList"></ol>
+      <p class="note" id="rankNote">랭킹을 불러오는 중이에요…</p>
+    </aside>
+  </main>
+</div>
+
+<script>
+// ---------- 상수 ----------
+const VW = 800, VH = 448, T = 32, STEP = 1 / 120;
+const G = 2000, JUMP = 760, SPEED = 250, MAXFALL = 900;
+const STORE_KEY = 'coin-jump-profile-v1';
+
+// ---------- 맵 만들기 ----------
+// 타일: 1 땅, 2 나무 상자, 3 떠 있는 발판, 4 가시(밟으면 하트 -1). 땅 윗면은 12번째 줄.
+// 움직이는 발판은 타일이 아니라 따로 움직이는 물체: mover(x, y, 너비, 가로 이동칸, 세로 이동칸, 왕복 초)
+// 얼음 동굴: 5 얼음(미끄러움). enemy(a, b, y)는 a~b칸 사이를 오가는 펭귄.
+function makeLevel(cols, fn, theme = 'forest') {
+  const rows = 14;
+  const grid = Array.from({ length: rows }, () => new Uint8Array(cols));
+  const L = {
+    coins: [], movers: [], enemies: [], start: { x: 2, y: 11 }, flag: cols - 6,
+    ice(a, b) { for (let x = a; x <= b; x++) for (let y = 12; y < rows; y++) grid[y][x] = 5; },
+    icePlat(x, y, w) { for (let i = 0; i < w; i++) grid[y][x + i] = 5; },
+    // 화산: 6 용암(빠지면 하트 -1, 위로 튕겨나옴), 7 무너지는 발판(밟으면 흔들리다 부서지고 3초 뒤 다시 생김)
+    lava(a, b) { for (let x = a; x <= b; x++) for (let y = 12; y < rows; y++) grid[y][x] = 6; },
+    crumble(x, y, w) { for (let i = 0; i < w; i++) grid[y][x + i] = 7; },
+    enemy(a, b, y = 11) { L.enemies.push({ minX: a * T, maxX: (b + 1) * T - 24, x: a * T, y: (y + 1) * T - 24, w: 24, h: 24, vx: 50 }); },
+    spikes(x, y, n) { for (let i = 0; i < n; i++) grid[y][x + i] = 4; },
+    mover(x, y, w, dx, dy, period) { L.movers.push({ x: x * T, y: y * T, w: w * T, ax: dx * T, ay: dy * T, period }); },
+    ground(a, b) { for (let x = a; x <= b; x++) for (let y = 12; y < rows; y++) grid[y][x] = 1; },
+    block(x, y, w, h) { for (let i = 0; i < w; i++) for (let j = 0; j < h; j++) grid[y + j][x + i] = 2; },
+    plat(x, y, w) { for (let i = 0; i < w; i++) grid[y][x + i] = 3; },
+    coin(x, y) { L.coins.push({ x, y }); },
+    coinRow(x, y, n) { for (let i = 0; i < n; i++) L.coin(x + i, y); },
+    begin(x, y) { L.start = { x, y }; },
+    goal(x) { L.flag = x; },
+  };
+  fn(L);
+  return { cols, rows, grid, theme, coins: L.coins, movers: L.movers, enemies: L.enemies, start: L.start, flag: L.flag };
+}
+
+const forest1 = () => makeLevel(126, L => {
+  L.begin(2, 11);
+  L.ground(0, 17);   L.coinRow(6, 11, 4);
+  L.plat(12, 9, 3);  L.coinRow(12, 8, 3);
+  L.coin(18, 10); L.coin(19, 9); L.coin(20, 10);           // 첫 번째 구멍 위
+  L.ground(21, 34);
+  L.block(26, 10, 1, 2); L.coin(26, 9);
+  L.plat(29, 8, 3);  L.coinRow(29, 7, 3);
+  L.coinRow(35, 9, 3);                                     // 두 번째 구멍 위
+  L.ground(38, 50);  L.coinRow(42, 11, 5);
+  L.plat(52, 10, 3); L.coinRow(52, 9, 3);                  // 징검다리 발판
+  L.plat(57, 8, 3);  L.coinRow(57, 7, 3);
+  L.plat(62, 10, 3); L.coinRow(62, 9, 3);
+  L.ground(66, 74);
+  L.block(72, 11, 1, 1); L.block(73, 10, 1, 2); L.block(74, 9, 1, 3);   // 계단
+  L.coinRow(75, 8, 3);
+  L.ground(78, 100); L.coinRow(82, 11, 5);
+  L.plat(90, 9, 4);  L.coinRow(90, 8, 4);
+  L.plat(95, 6, 2);  L.coinRow(95, 5, 2);                  // 숨은 높은 발판
+  L.ground(104, 125); L.coinRow(106, 11, 3);
+  L.goal(118);
+});
+
+// 숲 Lv.2: 가시가 처음 나온다. 가시 위 발판으로 피해 가는 길이 있다.
+const forest2 = () => makeLevel(140, L => {
+  L.begin(2, 11);
+  L.ground(0, 20);   L.coinRow(5, 11, 3);
+  L.spikes(10, 11, 2); L.coinRow(10, 9, 2);              // 첫 가시: 뛰어넘기
+  L.spikes(16, 11, 1); L.coin(16, 9);
+  L.coinRow(21, 9, 3);                                   // 구멍 21~23
+  L.ground(24, 45);
+  L.spikes(28, 11, 3); L.coin(28, 9); L.coin(29, 8); L.coin(30, 9);   // 가시 3칸 뛰어넘기
+  L.spikes(35, 11, 3); L.coinRow(35, 8, 3);
+  L.block(40, 10, 2, 2); L.coinRow(40, 9, 2); L.spikes(42, 11, 2);
+  L.plat(47, 10, 2); L.coinRow(47, 9, 2);                // 구멍 46~49 가운데 발판
+  L.ground(50, 70);
+  L.spikes(54, 11, 3); L.coin(54, 9); L.coin(55, 8); L.coin(56, 9);
+  L.coinRow(61, 11, 4);
+  L.block(66, 9, 1, 3); L.coin(66, 8); L.spikes(67, 11, 2);
+  L.coinRow(71, 9, 3);                                   // 구멍 71~73
+  L.ground(74, 95);
+  L.spikes(81, 11, 7);                                   // 가시밭: 발판 징검다리로 건너기
+  L.plat(78, 9, 3); L.coinRow(78, 8, 3);
+  L.plat(83, 7, 3); L.coinRow(83, 6, 3);
+  L.coinRow(89, 11, 3);
+  L.coinRow(96, 9, 3);                                   // 구멍 96~98
+  L.ground(99, 139);
+  L.spikes(104, 11, 2); L.coinRow(104, 9, 2);
+  L.spikes(110, 11, 2); L.coinRow(110, 9, 2);
+  L.coinRow(116, 11, 6);
+  L.goal(130);
+});
+
+// 숲 Lv.3: 움직이는 발판. 타이밍을 기다렸다 올라타야 한다.
+const forest3 = () => makeLevel(150, L => {
+  L.begin(2, 11);
+  L.ground(0, 14);   L.coinRow(5, 11, 3);
+  L.mover(15, 10, 3, 7, 0, 3.4);  L.coinRow(17, 8, 6);   // 가로로 오가는 발판 (구멍 15~24)
+  L.ground(25, 36);
+  L.spikes(30, 11, 2); L.coinRow(30, 9, 2);
+  L.mover(37, 11, 2, 0, -5, 3.2);                        // 위아래로 오가는 엘리베이터
+  L.plat(40, 6, 6);  L.coinRow(40, 5, 6);                // 높은 발판 (아래는 구멍 37~49)
+  L.ground(50, 57);  L.coinRow(52, 11, 4);
+  L.mover(58, 10, 3, 6, 0, 2.8);  L.coinRow(60, 8, 5);   // 구멍 58~73: 발판 두 개 갈아타기
+  L.mover(69, 7, 3, 0, 4, 2.4);   L.coin(70, 6);
+  L.ground(74, 100);
+  L.spikes(80, 11, 3); L.coinRow(80, 9, 3);
+  L.block(88, 10, 1, 2); L.block(89, 8, 1, 4); L.coin(89, 7);
+  L.coinRow(93, 11, 4);
+  L.mover(101, 9, 3, 6, 0, 3.6);  L.coinRow(102, 7, 8);  // 긴 구멍 101~112
+  L.ground(113, 149);
+  L.coinRow(116, 11, 5);
+  L.spikes(124, 11, 2); L.coinRow(124, 9, 2);
+  L.goal(140);
+});
+
+// 얼음 동굴 Lv.1: 짧은 얼음 구간. 구멍 앞 얼음에서 미끄러지는 느낌을 익힌다.
+const ice1 = () => makeLevel(130, L => {
+  L.begin(2, 11);
+  L.ground(0, 15);   L.coinRow(5, 11, 3);
+  L.ice(10, 15);                                         // 구멍 바로 앞이 얼음
+  L.coinRow(16, 9, 3);                                   // 구멍 16~18
+  L.ground(19, 32);  L.ice(24, 29); L.coinRow(24, 11, 6);
+  L.icePlat(28, 8, 3); L.coinRow(28, 7, 3);
+  L.coinRow(33, 9, 3);                                   // 구멍 33~35
+  L.ground(36, 50);  L.ice(44, 50); L.coinRow(46, 11, 3);
+  L.coinRow(51, 9, 3);                                   // 구멍 51~53
+  L.ground(54, 70);
+  L.block(60, 10, 1, 2); L.coin(60, 9);
+  L.icePlat(64, 9, 4); L.coinRow(64, 8, 4);
+  L.coinRow(71, 9, 3);                                   // 구멍 71~73
+  L.ground(74, 90);  L.ice(74, 79);                      // 착지하자마자 얼음
+  L.coinRow(80, 11, 4);
+  L.icePlat(85, 9, 3); L.coinRow(85, 8, 3);
+  L.coinRow(91, 9, 3);                                   // 구멍 91~93
+  L.ground(94, 129); L.ice(98, 104);
+  L.coinRow(106, 11, 4);
+  L.goal(120);
+}, 'ice');
+
+// 얼음 동굴 Lv.2: 얼음 + 좁은 발판. 멈추기 어려운 2칸 발판을 건너뛴다.
+const ice2 = () => makeLevel(140, L => {
+  L.begin(2, 11);
+  L.ground(0, 12);   L.coinRow(5, 11, 3);
+  L.icePlat(15, 10, 2); L.coinRow(15, 9, 2);             // 구멍 13~27 징검다리
+  L.icePlat(19, 9, 2);  L.coinRow(19, 8, 2);
+  L.icePlat(22, 10, 2); L.coinRow(22, 9, 2);
+  L.icePlat(25, 10, 2); L.coinRow(25, 9, 2);
+  L.ground(28, 40);  L.ice(28, 31);                      // 얼음에 착지하면 가시 쪽으로 미끄러진다
+  L.spikes(33, 11, 2); L.coinRow(33, 9, 2);
+  L.icePlat(43, 9, 2); L.coinRow(43, 8, 2);              // 구멍 41~54
+  L.icePlat(47, 7, 3); L.coinRow(47, 6, 3);
+  L.icePlat(51, 9, 2); L.coinRow(51, 8, 2);
+  L.ground(55, 72);  L.ice(55, 72);                      // 긴 얼음길 + 가시 하나씩
+  L.spikes(62, 11, 1); L.coin(62, 9);
+  L.spikes(68, 11, 1); L.coin(68, 9);
+  L.icePlat(75, 10, 2); L.coinRow(75, 9, 2);             // 구멍 73~81
+  L.icePlat(78, 9, 3);  L.coinRow(78, 8, 3);
+  L.ground(82, 139); L.coinRow(84, 11, 4);
+  L.block(90, 10, 2, 2); L.coinRow(90, 9, 2);
+  L.icePlat(95, 8, 3); L.coinRow(95, 7, 3);
+  L.spikes(100, 11, 3); L.coin(100, 9); L.coin(101, 8); L.coin(102, 9);
+  L.ice(105, 112);
+  L.coinRow(116, 11, 5);
+  L.goal(128);
+}, 'ice');
+
+// 얼음 동굴 Lv.3: 얼음 위를 순찰하는 펭귄. 닿으면 하트 -1.
+const ice3 = () => makeLevel(150, L => {
+  L.begin(2, 11);
+  L.ground(0, 20);   L.ice(10, 20); L.enemy(12, 18); L.coinRow(12, 9, 5);
+  L.coinRow(21, 9, 3);                                   // 구멍 21~23
+  L.ground(24, 44);  L.enemy(27, 33);
+  L.icePlat(34, 8, 4); L.coinRow(34, 7, 4);
+  L.ice(38, 44);     L.enemy(39, 44);
+  L.coinRow(45, 9, 3);                                   // 구멍 45~47
+  L.ground(48, 64);  L.ice(48, 60); L.enemy(50, 60);     // 구멍 앞 4칸은 안 미끄러지는 바위
+  L.plat(55, 8, 3);  L.coinRow(55, 7, 3);
+  L.mover(66, 10, 3, 6, 0, 3.0); L.coinRow(68, 8, 5);    // 구멍 65~77
+  L.ground(78, 100); L.ice(84, 100);
+  L.enemy(85, 92);   L.enemy(94, 99); L.coinRow(86, 9, 6);
+  L.icePlat(92, 7, 3); L.coinRow(92, 6, 3);
+  L.coinRow(101, 9, 3);                                  // 구멍 101~103
+  L.ground(104, 149); L.ice(104, 115); L.enemy(108, 114);
+  L.spikes(120, 11, 2); L.coinRow(120, 9, 2);
+  L.enemy(124, 129); L.coinRow(130, 11, 5);
+  L.goal(140);
+}, 'ice');
+
+// 화산 Lv.1: 구멍 대신 용암. 빠져도 바로 끝나지 않고 하트가 줄며 튕겨나온다.
+const volcano1 = () => makeLevel(130, L => {
+  L.begin(2, 11);
+  L.ground(0, 14);   L.coinRow(5, 11, 3);
+  L.lava(15, 17);    L.coin(15, 10); L.coin(16, 9); L.coin(17, 10);
+  L.ground(18, 30);  L.plat(23, 9, 3); L.coinRow(23, 8, 3);
+  L.lava(31, 34);    L.coinRow(31, 9, 4);
+  L.ground(35, 50);  L.spikes(41, 11, 2); L.coinRow(41, 9, 2);
+  L.lava(51, 60);                                        // 긴 용암 위 징검다리
+  L.plat(53, 10, 2); L.coinRow(53, 9, 2);
+  L.plat(57, 9, 2);  L.coinRow(57, 8, 2);
+  L.ground(61, 78);  L.block(66, 10, 1, 2); L.coin(66, 9); L.coinRow(70, 11, 4);
+  L.lava(79, 82);    L.coinRow(79, 9, 4);
+  L.ground(83, 129); L.plat(88, 9, 3); L.coinRow(88, 8, 3);
+  L.lava(95, 97);    L.coin(95, 10); L.coin(96, 9); L.coin(97, 10);
+  L.coinRow(104, 11, 5);
+  L.goal(120);
+}, 'volcano');
+
+// 화산 Lv.2: 무너지는 발판. 밟으면 흔들리다가 0.45초 뒤 부서진다. 머뭇거리면 안 된다.
+const volcano2 = () => makeLevel(140, L => {
+  L.begin(2, 11);
+  L.ground(0, 12);   L.coinRow(4, 11, 3);
+  L.lava(13, 26);
+  L.crumble(14, 10, 3); L.coinRow(14, 9, 3);
+  L.crumble(19, 9, 3);  L.coinRow(19, 8, 3);
+  L.crumble(24, 10, 2); L.coinRow(24, 9, 2);
+  L.ground(27, 40);  L.coinRow(30, 11, 4);
+  L.crumble(34, 8, 3); L.coinRow(34, 7, 3);
+  L.lava(41, 52);
+  L.crumble(43, 9, 2);  L.coinRow(43, 8, 2);
+  L.crumble(47, 8, 2);  L.coinRow(47, 7, 2);
+  L.crumble(51, 10, 1); L.coin(51, 9);
+  L.ground(53, 70);  L.spikes(58, 11, 2); L.coinRow(58, 9, 2);
+  L.lava(63, 67); L.crumble(63, 12, 5); L.coinRow(63, 11, 5);   // 무너지는 다리: 멈추지 말고 달리기
+  L.lava(71, 85);
+  L.crumble(73, 10, 2); L.coinRow(73, 9, 2);
+  L.crumble(77, 9, 2);  L.coinRow(77, 8, 2);
+  L.crumble(81, 10, 2); L.coinRow(81, 9, 2);
+  L.ground(86, 139); L.coinRow(90, 11, 4);
+  L.crumble(95, 9, 4); L.coinRow(95, 8, 4);
+  L.spikes(102, 11, 3); L.coin(102, 9); L.coin(103, 8); L.coin(104, 9);
+  L.lava(108, 110);  L.coinRow(108, 9, 3);
+  L.coinRow(116, 11, 5);
+  L.goal(128);
+}, 'volcano');
+
+// 화산 Lv.3: 최종 스테이지. 용암, 무너지는 발판, 움직이는 발판, 용암 슬라임이 모두 나온다.
+const volcano3 = () => makeLevel(160, L => {
+  L.begin(2, 11);
+  L.ground(0, 16);   L.enemy(8, 15); L.coinRow(8, 9, 4);
+  L.lava(17, 30);    L.mover(18, 10, 3, 6, 0, 3.0); L.coinRow(19, 8, 6);
+  L.ground(31, 45);  L.spikes(36, 11, 2); L.coinRow(36, 9, 2); L.enemy(39, 45);
+  L.lava(46, 60);
+  L.crumble(48, 9, 2); L.coinRow(48, 8, 2);
+  L.crumble(52, 7, 2); L.coinRow(52, 6, 2);
+  L.crumble(56, 9, 2); L.coinRow(56, 8, 2);
+  L.ground(61, 80);
+  L.lava(66, 69); L.crumble(66, 12, 4); L.coinRow(66, 11, 4);
+  L.enemy(71, 79);   L.plat(74, 8, 3); L.coinRow(74, 7, 3);
+  L.lava(81, 96);    L.mover(82, 10, 3, 6, 0, 3.2); L.coinRow(84, 8, 5);
+  L.crumble(93, 9, 2); L.coinRow(93, 8, 2);
+  L.ground(97, 159); L.enemy(102, 108);
+  L.spikes(111, 11, 2); L.coinRow(111, 9, 2);
+  L.crumble(115, 9, 3); L.coinRow(115, 8, 3);
+  L.lava(120, 123);  L.coin(120, 10); L.coin(121, 9); L.coin(122, 9); L.coin(123, 10);
+  L.enemy(126, 132); L.coinRow(134, 11, 5);
+  L.goal(150);
+}, 'volcano');
+
+const MAPS = [
+  { key: 'forest', name: '숲', sub: '기본 점프', color: '#74c56b' },
+  { key: 'ice', name: '얼음 동굴', sub: '미끄러운 바닥', color: '#8fd3f4' },
+  { key: 'volcano', name: '화산', sub: '용암 · 무너지는 발판', color: '#ff7b54' },
+];
+const STAGES = [];
+MAPS.forEach(m => [1, 2, 3].forEach(lv => STAGES.push({
+  id: `${m.key}-${lv}`, map: m, lv, name: `${m.name} Lv.${lv}`,
+  build: m.key === 'forest' ? [forest1, forest2, forest3][lv - 1] : m.key === 'ice' ? [ice1, ice2, ice3][lv - 1] : [volcano1, volcano2, volcano3][lv - 1],
+})));
+
+// ---------- 상점 아이템 ----------
+const COLORS = [
+  { id: 'orange', name: '기본 주황', hex: '#ff7a59', price: 0 },
+  { id: 'sky', name: '하늘', hex: '#5bb8f5', price: 10 },
+  { id: 'mint', name: '민트', hex: '#3fd1a5', price: 10 },
+  { id: 'grape', name: '포도', hex: '#a58bf5', price: 20 },
+  { id: 'peach', name: '분홍', hex: '#ff8fc7', price: 20 },
+  { id: 'gold', name: '황금', hex: '#ffd23f', price: 80 },
+];
+const HATS = [
+  { id: 'none', name: '모자 없음', price: 0 },
+  { id: 'leaf', name: '나뭇잎', price: 15 },
+  { id: 'ribbon', name: '리본', price: 20 },
+  { id: 'cap', name: '야구모자', price: 30 },
+  { id: 'wizard', name: '마법사 모자', price: 45 },
+  { id: 'crown', name: '왕관', price: 60 },
+];
+const FREE = ['orange', 'none'];
+const colorHex = id => (COLORS.find(c => c.id === id) || COLORS[0]).hex;
+
+// ---------- 내 기록 ----------
+// 지갑(wallet)은 상점에서 쓰면 줄고, 총 모은 코인(totalCoins)은 랭킹 점수라 줄지 않는다.
+const blankProfile = () => ({ nickname: '', wallet: 0, totalCoins: 0, cleared: [], best: {}, color: 'orange', hat: 'none', owned: [...FREE] });
+let profile = loadLocal();
+
+function cleanProfile(p) {
+  const b = blankProfile();
+  if (!p || typeof p !== 'object') return b;
+  const num = v => (Number.isFinite(Number(v)) && Number(v) >= 0 ? Math.floor(Number(v)) : 0);
+  b.nickname = typeof p.nickname === 'string' ? p.nickname.slice(0, 10) : '';
+  b.wallet = num(p.wallet);
+  b.totalCoins = num(p.totalCoins);
+  b.cleared = Array.isArray(p.cleared) ? p.cleared.filter(s => typeof s === 'string') : [];
+  if (p.best && typeof p.best === 'object') for (const k in p.best) b.best[k] = num(p.best[k]);
+  const known = [...COLORS, ...HATS].map(i => i.id);
+  if (Array.isArray(p.owned)) b.owned = [...new Set([...FREE, ...p.owned.filter(id => known.includes(id))])];
+  if (COLORS.some(c => c.id === p.color) && b.owned.includes(p.color)) b.color = p.color;
+  if (HATS.some(h => h.id === p.hat) && b.owned.includes(p.hat)) b.hat = p.hat;
+  return b;
+}
+function loadLocal() {
+  try { return cleanProfile(JSON.parse(localStorage.getItem(STORE_KEY))); } catch { return blankProfile(); }
+}
+function saveLocal() {
+  try { localStorage.setItem(STORE_KEY, JSON.stringify(profile)); } catch {}
+}
+
+// ---------- 공용 랭킹 (db) ----------
+let db = null, uid = null, canWrite = true, writing = false, dirty = false;
+const rankList = document.getElementById('rankList');
+const rankNote = document.getElementById('rankNote');
+const note = t => { rankNote.textContent = t; rankNote.hidden = !t; };
+
+async function connect() {
+  const c = window.claude;
+  if (!c || !c.use) { note('이 화면에서는 랭킹을 쓸 수 없어요. 기록은 이 브라우저에만 저장돼요.'); return; }
+  const [d, u] = await Promise.all([c.use('db'), c.use('user')]);
+  const id = u ? await u.id() : null;
+  if (!d || !id) { note('claude.ai에 로그인하면 랭킹에 참여할 수 있어요. 기록은 이 브라우저에만 저장돼요.'); return; }
+  db = d; uid = id;
+
+  db.collection('ranks').orderBy('totalCoins', 'desc').limit(20).onSnapshot(renderRank, () => note('랭킹을 불러오지 못했어요. 새로고침해 보세요.'));
+
+  try {
+    const snap = await db.doc(`data/users/${uid}/profile`).get();
+    if (snap.exists) mergeProfile(cleanProfile(snap.data()));
+  } catch {}
+  refreshStats();
+  if (profile.nickname) queueSave();
+}
+
+function mergeProfile(remote) {
+  const cleared = new Set([...profile.cleared, ...remote.cleared]);
+  const best = { ...profile.best };
+  for (const k in remote.best) best[k] = Math.max(best[k] || 0, remote.best[k]);
+  const base = remote.totalCoins >= profile.totalCoins ? remote : profile;
+  const owned = [...new Set([...profile.owned, ...remote.owned])];
+  profile = { ...base, nickname: profile.nickname || remote.nickname, cleared: [...cleared], best, owned };
+  saveLocal();
+}
+
+function queueSave() {
+  saveLocal();
+  refreshStats();
+  if (!db || !canWrite) return;
+  dirty = true;
+  if (!writing) flush();
+}
+async function flush() {
+  writing = true;
+  let retried = false;
+  while (dirty) {
+    dirty = false;
+    const body = JSON.parse(JSON.stringify(profile));
+    try {
+      await db.doc(`data/users/${uid}/profile`).set(body);
+      if (body.nickname) await db.doc(`ranks/${uid}`).set({ nickname: body.nickname, totalCoins: body.totalCoins, updatedAt: Date.now() });
+    } catch (e) {
+      const code = e && e.code;
+      if (code === 'unavailable' && !retried) {
+        retried = true; dirty = true;
+        await new Promise(r => setTimeout(r, 600 + Math.random() * 900));
+      } else if (code === 'invalid_argument') {
+        canWrite = false;
+        note('이 링크는 보기 전용이라 랭킹에 기록을 올릴 수 없어요.');
+      } else if (code === 'quota_exceeded') {
+        note('랭킹 저장 공간이 가득 찼어요. 기록은 이 브라우저에 저장돼요.');
+      } else {
+        note('랭킹에 기록을 올리지 못했어요. 다음 클리어 때 다시 시도해요.');
+      }
+    }
+  }
+  writing = false;
+}
+
+function renderRank(snap) {
+  rankList.textContent = '';
+  let rank = 0;
+  for (const d of snap.docs) {
+    const v = d.data() || {};
+    const pts = Number(v.totalCoins);
+    const nm = typeof v.nickname === 'string' ? v.nickname.slice(0, 10) : '';
+    if (!nm || !Number.isFinite(pts)) continue;
+    rank++;
+    const li = document.createElement('li');
+    if (d.id === uid) li.className = 'me';
+    const no = document.createElement('span'); no.className = 'no'; no.textContent = rank;
+    const n = document.createElement('span'); n.className = 'nm'; n.textContent = d.id === uid ? `${nm} (나)` : nm;
+    const p = document.createElement('span'); p.className = 'pt'; p.textContent = Math.floor(pts).toLocaleString('ko-KR');
+    li.append(no, n, p);
+    rankList.append(li);
+  }
+  if (canWrite) note(rank ? '' : '아직 기록이 없어요. 첫 스테이지를 깨면 여기에 이름이 올라가요.');
+}
+
+// ---------- 화면 전환 ----------
+const screenEl = document.getElementById('screen');
+const ov = { title: document.getElementById('ovTitle'), select: document.getElementById('ovSelect'), clear: document.getElementById('ovClear'), shop: document.getElementById('ovShop') };
+let mode = 'title';
+function showOverlay(name) { for (const k in ov) ov[k].hidden = k !== name; }
+
+function refreshStats() {
+  document.getElementById('whoLabel').textContent = profile.nickname ? `${profile.nickname} 님` : '닉네임 없음';
+  document.getElementById('walletN').textContent = profile.wallet.toLocaleString('ko-KR');
+  document.getElementById('totalN').textContent = profile.totalCoins.toLocaleString('ko-KR');
+}
+
+const nickInput = document.getElementById('nick');
+const nickError = document.getElementById('nickError');
+nickInput.value = profile.nickname;
+document.getElementById('nickForm').addEventListener('submit', e => {
+  e.preventDefault();
+  const v = nickInput.value.trim().slice(0, 10);
+  nickError.hidden = !!v;
+  if (!v) { nickInput.focus(); return; }
+  const changed = v !== profile.nickname;
+  profile.nickname = v;
+  if (changed) queueSave(); else refreshStats();
+  goSelect();
+});
+document.getElementById('changeNick').addEventListener('click', () => {
+  mode = 'title'; showOverlay('title'); nickInput.value = profile.nickname; nickInput.focus();
+});
+
+const isUnlocked = i => i === 0 || profile.cleared.includes(STAGES[i - 1].id);
+function goSelect() {
+  mode = 'select'; run = null;
+  const box = document.getElementById('maps');
+  box.textContent = '';
+  MAPS.forEach(m => {
+    const row = document.createElement('div'); row.className = 'maprow';
+    const label = document.createElement('div'); label.className = 'mapname';
+    label.style.color = m.color; label.textContent = m.name;
+    const sm = document.createElement('small'); sm.textContent = m.sub; label.append(sm);
+    row.append(label);
+    STAGES.forEach((s, i) => {
+      if (s.map !== m) return;
+      const b = document.createElement('button'); b.type = 'button'; b.className = 'lvl';
+      const t = document.createElement('b'); t.textContent = `Lv.${s.lv}`;
+      const st = document.createElement('span');
+      const open = isUnlocked(i);
+      if (!open) { st.textContent = '잠김'; b.disabled = true; }
+      else if (!s.build) { st.textContent = '준비 중'; b.disabled = true; }
+      else if (profile.cleared.includes(s.id)) { st.textContent = `클리어 · 최고 ${profile.best[s.id] || 0}`; b.classList.add('done'); }
+      else { st.textContent = '도전!'; b.classList.add('ready'); }
+      b.append(t, st);
+      b.addEventListener('click', () => startStage(s));
+      row.append(b);
+    });
+    box.append(row);
+  });
+  showOverlay('select');
+  const first = box.querySelector('.lvl:not(:disabled)');
+  if (first) first.focus();
+}
+
+// ---------- 상점 ----------
+let shopSel = null;   // 아직 안 산 아이템을 눌렀을 때: { kind: 'color' | 'hat', item }
+let shopMsg = '';
+const tryCv = document.getElementById('tryOn');
+const buyBtn = document.getElementById('buyBtn');
+const tryText = document.getElementById('tryText');
+
+function lookOf(kind, item) {
+  return { color: kind === 'color' ? item.id : profile.color, hat: kind === 'hat' ? item.id : profile.hat };
+}
+function miniCanvas(look) {
+  const c = document.createElement('canvas');
+  c.width = 72; c.height = 68;
+  const g = c.getContext('2d');
+  g.scale(2 * 0.62, 2 * 0.62);
+  drawBody(g, (36 / 0.62 - 22) / 2, 34 / 0.62 - 30, 22, 28, 1, colorHex(look.color), look.hat);
+  return c;
+}
+function openShop() {
+  mode = 'shop'; shopSel = null; shopMsg = '';
+  renderShop();
+  showOverlay('shop');
+  const first = ov.shop.querySelector('.item');
+  if (first) first.focus();
+}
+function renderShop() {
+  document.getElementById('shopWallet').textContent = profile.wallet.toLocaleString('ko-KR');
+  [['color', COLORS, 'colorGrid'], ['hat', HATS, 'hatGrid']].forEach(([kind, list, gridId]) => {
+    const grid = document.getElementById(gridId);
+    grid.textContent = '';
+    list.forEach(item => {
+      const owned = profile.owned.includes(item.id), on = profile[kind] === item.id;
+      const b = document.createElement('button'); b.type = 'button'; b.className = 'item';
+      if (owned) b.classList.add('own');
+      if (on) b.classList.add('on');
+      if (shopSel && shopSel.item === item) b.classList.add('sel');
+      const txt = document.createElement('div');
+      const nm = document.createElement('b'); nm.textContent = item.name;
+      const st = document.createElement('span'); st.textContent = on ? '착용 중' : owned ? '가지고 있음' : `${item.price}코인`;
+      txt.append(nm, st);
+      b.append(miniCanvas(lookOf(kind, item)), txt);
+      b.setAttribute('aria-label', `${item.name}, ${st.textContent}`);
+      b.addEventListener('click', () => pickItem(kind, item));
+      grid.append(b);
+    });
+  });
+  if (shopSel) {
+    const need = shopSel.item.price - profile.wallet;
+    tryText.textContent = `${shopSel.item.name} · ${shopSel.item.price}코인`;
+    buyBtn.hidden = false;
+    buyBtn.disabled = need > 0;
+    buyBtn.textContent = need > 0 ? `코인이 ${need}개 부족해요` : `${shopSel.item.price}코인으로 사기`;
+  } else {
+    tryText.textContent = shopMsg || '아이템을 누르면 먼저 입어 볼 수 있어요.';
+    buyBtn.hidden = true;
+  }
+}
+function pickItem(kind, item) {
+  shopMsg = '';
+  if (profile.owned.includes(item.id)) {
+    shopSel = null;
+    if (profile[kind] !== item.id) { profile[kind] = item.id; queueSave(); shopMsg = `${item.name} 착용!`; }
+  } else {
+    shopSel = { kind, item };
+  }
+  renderShop();
+}
+buyBtn.addEventListener('click', () => {
+  if (!shopSel || profile.wallet < shopSel.item.price) return;
+  const { kind, item } = shopSel;
+  profile.wallet -= item.price;
+  profile.owned.push(item.id);
+  profile[kind] = item.id;
+  shopSel = null;
+  shopMsg = `${item.name} 구매 완료! 바로 착용했어요.`;
+  queueSave();
+  renderShop();
+});
+function drawTryOn(now) {
+  const g = tryCv.getContext('2d');
+  g.setTransform(1, 0, 0, 1, 0, 0);
+  g.clearRect(0, 0, tryCv.width, tryCv.height);
+  g.fillStyle = '#58b553'; g.fillRect(0, 230, 320, 50);
+  g.fillStyle = '#7a4e2f'; g.fillRect(0, 244, 320, 36);
+  const look = shopSel ? lookOf(shopSel.kind, shopSel.item) : { color: profile.color, hat: profile.hat };
+  const face = Math.sin(now / 900) > 0 ? 1 : -1;
+  const bob = Math.abs(Math.sin(now / 260)) * 6;
+  g.scale(4.4, 4.4);
+  drawBody(g, (320 / 4.4 - 22) / 2, 230 / 4.4 - 28 - bob / 4.4, 22, 28, face, colorHex(look.color), look.hat);
+}
+document.getElementById('openShop').addEventListener('click', openShop);
+document.getElementById('shopBack').addEventListener('click', goSelect);
+
+// ---------- 게임 진행 ----------
+let run = null;
+const keys = { left: false, right: false, jump: false };
+let jumpQueued = false;
+
+function newPlayer(lv) {
+  return { x: lv.start.x * T + 5, y: (lv.start.y + 1) * T - 28, w: 22, h: 28, vx: 0, vy: 0, onGround: false, face: 1, coyote: 0, buffer: 0, squash: 0, inv: 0, riding: null };
+}
+function startStage(stage) {
+  const lv = stage.build();
+  lv.shaking = new Map();
+  run = {
+    stage, lv, hearts: 3, got: 0, time: 0, state: 'play', reason: '', timer: 0, fx: [],
+    movers: lv.movers.map(m => ({ ...m, cx: m.x, cy: m.y, dx: 0, dy: 0 })),
+    enemies: lv.enemies.map(e => ({ ...e })),
+    coins: lv.coins.map(c => ({ x: c.x * T + T / 2, y: c.y * T + T / 2, taken: false })),
+    p: newPlayer(lv),
+  };
+  jumpQueued = false;
+  mode = 'play'; showOverlay(null);
+  screenEl.focus({ preventScroll: true });
+}
+const restart = () => startStage(run.stage);
+
+function clearStage() {
+  const r = run, id = r.stage.id;
+  r.state = 'clear'; r.timer = 0.7;
+  profile.wallet += r.got;
+  profile.totalCoins += r.got;
+  if (!profile.cleared.includes(id)) profile.cleared.push(id);
+  profile.best[id] = Math.max(profile.best[id] || 0, r.got);
+  queueSave();
+}
+function showResult() {
+  const r = run;
+  mode = 'result';
+  document.getElementById('clearStage').textContent = r.stage.name;
+  document.getElementById('rCoins').textContent = `${r.got} / ${r.coins.length}`;
+  document.getElementById('rTime').textContent = `${r.time.toFixed(1)}초`;
+  document.getElementById('rWallet').textContent = profile.wallet.toLocaleString('ko-KR');
+  const i = STAGES.indexOf(r.stage), next = STAGES[i + 1];
+  document.getElementById('rNext').textContent = next
+    ? (next.build ? `${next.name}가 열렸어요!` : `${next.name}가 열렸어요. 이 스테이지는 곧 추가돼요.`)
+    : '모든 스테이지를 깼어요!';
+  showOverlay('clear');
+  document.getElementById('againBtn').focus();
+}
+document.getElementById('againBtn').addEventListener('click', restart);
+document.getElementById('toSelectBtn').addEventListener('click', goSelect);
+
+// ---------- 물리 ----------
+function solid(lv, tx, ty) {
+  if (tx < 0 || tx >= lv.cols) return true;
+  if (ty < 0 || ty >= lv.rows) return false;
+  const t = lv.grid[ty][tx];
+  return t > 0 && t !== 4 && t !== 6;
+}
+function inLava(p, lv) {
+  const x0 = Math.max(0, Math.floor((p.x + 3) / T)), x1 = Math.min(lv.cols - 1, Math.floor((p.x + p.w - 3) / T));
+  const y0 = Math.max(0, Math.floor(p.y / T)), y1 = Math.min(lv.rows - 1, Math.floor((p.y + p.h - 1) / T));
+  for (let ty = y0; ty <= y1; ty++) for (let tx = x0; tx <= x1; tx++)
+    if (lv.grid[ty][tx] === 6 && p.y + p.h > ty * T + 10) return true;
+  return false;
+}
+function updateCrumbles(p, lv, dt) {
+  if (p.onGround && !p.riding) {
+    const ty = Math.floor((p.y + p.h + 1) / T);
+    for (const px of [p.x + 2, p.x + p.w - 2]) {
+      const tx = Math.floor(px / T);
+      if (ty < lv.rows && lv.grid[ty][tx] === 7 && !lv.shaking.has(ty * lv.cols + tx))
+        lv.shaking.set(ty * lv.cols + tx, { x: tx, y: ty, t: 0.45, gone: false });
+    }
+  }
+  for (const [k, c] of lv.shaking) {
+    if ((c.t -= dt) > 0) continue;
+    if (!c.gone) { lv.grid[c.y][c.x] = 0; c.gone = true; c.t = 3; continue; }
+    const overlap = p.x + p.w > c.x * T && p.x < (c.x + 1) * T && p.y + p.h > c.y * T && p.y < (c.y + 1) * T;
+    if (!overlap) { lv.grid[c.y][c.x] = 7; lv.shaking.delete(k); }
+  }
+}
+function onIce(p, lv) {
+  const ty = Math.floor((p.y + p.h + 1) / T);
+  if (ty < 0 || ty >= lv.rows) return false;
+  const a = lv.grid[ty][Math.floor((p.x + 2) / T)], b = lv.grid[ty][Math.floor((p.x + p.w - 2) / T)];
+  return a === 5 || b === 5;
+}
+function touchingSpike(p, lv) {
+  const x0 = Math.floor((p.x + 3) / T), x1 = Math.floor((p.x + p.w - 3) / T);
+  const y0 = Math.max(0, Math.floor(p.y / T)), y1 = Math.min(lv.rows - 1, Math.floor((p.y + p.h - 1) / T));
+  for (let ty = y0; ty <= y1; ty++) for (let tx = Math.max(0, x0); tx <= Math.min(lv.cols - 1, x1); tx++)
+    if (lv.grid[ty][tx] === 4 && p.y + p.h > ty * T + T - 14) return true;
+  return false;
+}
+function hurt(r) {
+  const p = r.p;
+  if (p.inv > 0) return;
+  r.hearts--;
+  p.inv = 1.2; p.vy = -480; p.vx = -p.face * 220; p.riding = null;
+  if (r.hearts <= 0) { r.state = 'fell'; r.reason = 'hearts'; r.timer = 1.3; }
+}
+function moveX(p, dx, lv) {
+  p.x += dx;
+  const y0 = Math.floor(p.y / T), y1 = Math.floor((p.y + p.h - 0.01) / T);
+  if (dx > 0) {
+    const tx = Math.floor((p.x + p.w) / T);
+    for (let ty = y0; ty <= y1; ty++) if (solid(lv, tx, ty)) { p.x = tx * T - p.w; p.vx = 0; break; }
+  } else if (dx < 0) {
+    const tx = Math.floor(p.x / T);
+    for (let ty = y0; ty <= y1; ty++) if (solid(lv, tx, ty)) { p.x = (tx + 1) * T; p.vx = 0; break; }
+  }
+}
+function moveY(p, dy, lv) {
+  p.y += dy;
+  p.onGround = false;
+  const x0 = Math.floor(p.x / T), x1 = Math.floor((p.x + p.w - 0.01) / T);
+  if (dy > 0) {
+    const ty = Math.floor((p.y + p.h) / T);
+    for (let tx = x0; tx <= x1; tx++) if (solid(lv, tx, ty)) { p.y = ty * T - p.h; p.vy = 0; p.onGround = true; break; }
+  } else if (dy < 0) {
+    const ty = Math.floor(p.y / T);
+    for (let tx = x0; tx <= x1; tx++) if (solid(lv, tx, ty)) { p.y = (ty + 1) * T; p.vy = 0; break; }
+  }
+}
+
+function update(dt) {
+  const r = run, p = r.p, lv = r.lv;
+  r.fx = r.fx.filter(f => (f.t += dt) < 0.7);
+  if (r.state === 'fell') { if ((r.timer -= dt) <= 0) restart(); return; }
+  if (r.state === 'clear') { if ((r.timer -= dt) <= 0) { r.state = 'done'; showResult(); } return; }
+  if (r.state !== 'play') return;
+  r.time += dt;
+
+  for (const m of r.movers) {
+    const k = 0.5 - 0.5 * Math.cos(2 * Math.PI * r.time / m.period);
+    const nx = m.x + m.ax * k, ny = m.y + m.ay * k;
+    m.dx = nx - m.cx; m.dy = ny - m.cy; m.cx = nx; m.cy = ny;
+  }
+  if (p.riding) { moveX(p, p.riding.dx, lv); p.y += p.riding.dy; }
+  p.inv = Math.max(0, p.inv - dt);
+
+  const dir = (keys.right ? 1 : 0) - (keys.left ? 1 : 0);
+  if (dir) p.face = dir;
+  // 얼음 위에서는 속도가 천천히 바뀌어서 미끄러진다 (멈추는 데 약 3칸)
+  const grip = !p.onGround ? 9 : (!p.riding && onIce(p, lv)) ? 2.5 : 16;
+  p.vx += (dir * SPEED - p.vx) * Math.min(1, grip * dt);
+
+  if (jumpQueued) { p.buffer = 0.13; jumpQueued = false; }
+  p.buffer -= dt;
+  p.coyote = p.onGround ? 0.1 : p.coyote - dt;
+  if (p.buffer > 0 && p.coyote > 0) { p.vy = -JUMP; p.buffer = 0; p.coyote = 0; p.onGround = false; }
+  // 스페이스를 짧게 누르면 낮게, 길게 누르면 높게
+  const g = p.vy < 0 && !keys.jump && !p.launched ? G * 2.2 : G;
+  p.vy = Math.min(MAXFALL, p.vy + g * dt);
+
+  const wasAir = !p.onGround;
+  moveX(p, p.vx * dt, lv);
+  const prevBottom = p.y + p.h;
+  moveY(p, p.vy * dt, lv);
+  // 움직이는 발판은 위에서 내려올 때만 밟힌다
+  p.riding = null;
+  if (p.vy >= 0) for (const m of r.movers) {
+    if (p.x + p.w > m.cx + 2 && p.x < m.cx + m.w - 2 && prevBottom <= m.cy + 6 && p.y + p.h >= m.cy) {
+      p.y = m.cy - p.h; p.vy = 0; p.onGround = true; p.riding = m; break;
+    }
+  }
+  if (p.onGround && wasAir) p.squash = 1;
+  if (p.onGround) p.launched = false;
+  if (touchingSpike(p, lv)) { hurt(r); if (r.state !== 'play') return; }
+  if (inLava(p, lv)) {
+    if (p.inv <= 0) { hurt(r); if (r.state !== 'play') return; }
+    p.vy = -720; p.riding = null; p.launched = true;   // 용암에 닿으면 항상 약 4칸 위로 튕겨나온다
+  }
+  updateCrumbles(p, lv, dt);
+  for (const e of r.enemies) {
+    if (e.dead) { e.deadT -= dt; continue; }
+    e.x += e.vx * dt;
+    if (e.x < e.minX) { e.x = e.minX; e.vx = Math.abs(e.vx); }
+    if (e.x > e.maxX) { e.x = e.maxX; e.vx = -Math.abs(e.vx); }
+    if (p.x + p.w - 4 > e.x + 3 && p.x + 4 < e.x + e.w - 3 && p.y + p.h - 3 > e.y + 4 && p.y + 3 < e.y + e.h) {
+      if (p.vy > 0 && prevBottom <= e.y + 10) {
+        // 위에서 밟기: 펭귄은 납작해지고, 나는 통 튀어오른다 (스페이스를 누르고 있으면 더 높이)
+        e.dead = true; e.deadT = 0.5;
+        p.y = e.y - p.h; p.vy = keys.jump ? -760 : -480;
+        r.fx.push({ x: e.x + e.w / 2, y: e.y, t: 0, text: '꾹!' });
+      } else {
+        p.face = p.x + p.w / 2 < e.x + e.w / 2 ? 1 : -1;   // 펭귄 반대쪽으로 튕겨나가도록
+        hurt(r);
+        if (r.state !== 'play') return;
+      }
+    }
+  }
+  p.squash = Math.max(0, p.squash - dt * 6);
+
+  const cx = p.x + p.w / 2, cy = p.y + p.h / 2;
+  for (const c of r.coins) {
+    if (!c.taken && Math.abs(c.x - cx) < 18 && Math.abs(c.y - cy) < 22) {
+      c.taken = true; r.got++; r.fx.push({ x: c.x, y: c.y, t: 0 });
+    }
+  }
+  if (p.x + p.w > lv.flag * T + 10) clearStage();
+  else if (p.y > lv.rows * T + 60) { r.state = 'fell'; r.reason = 'pit'; r.timer = 1.1; }
+}
+
+// ---------- 입력 ----------
+const KEYMAP = { ArrowLeft: 'left', ArrowRight: 'right', Space: 'jump' };
+addEventListener('keydown', e => {
+  if (e.target instanceof HTMLInputElement) return;
+  if (e.key === 'Escape' && (mode === 'play' || mode === 'result' || mode === 'shop')) { goSelect(); return; }
+  const k = KEYMAP[e.code];
+  if (!k) return;
+  if (mode === 'play') e.preventDefault();
+  if (k === 'jump' && !e.repeat && !keys.jump) jumpQueued = true;
+  keys[k] = true;
+});
+addEventListener('keyup', e => { const k = KEYMAP[e.code]; if (k) keys[k] = false; });
+addEventListener('blur', () => { keys.left = keys.right = keys.jump = false; });
+document.querySelectorAll('#touch button').forEach(b => {
+  const k = b.dataset.key;
+  const on = e => { e.preventDefault(); if (k === 'jump' && !keys.jump) jumpQueued = true; keys[k] = true; b.classList.add('on'); };
+  const off = () => { keys[k] = false; b.classList.remove('on'); };
+  b.addEventListener('pointerdown', on);
+  ['pointerup', 'pointercancel', 'pointerleave'].forEach(t => b.addEventListener(t, off));
+});
+
+// ---------- 그리기 ----------
+const cv = document.getElementById('game');
+const ctx = cv.getContext('2d');
+function fit() {
+  const dpr = Math.min(2, window.devicePixelRatio || 1);
+  cv.width = VW * dpr; cv.height = VH * dpr;
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+}
+fit();
+addEventListener('resize', fit);
+
+const hash = n => { const s = Math.sin(n * 127.1) * 43758.5453; return s - Math.floor(s); };
+
+function drawCave(camX, now) {
+  const g = ctx.createLinearGradient(0, 0, 0, VH);
+  g.addColorStop(0, '#0f2036'); g.addColorStop(1, '#24476b');
+  ctx.fillStyle = g; ctx.fillRect(0, 0, VW, VH);
+
+  const gap = 110, off = camX * 0.2, first = Math.floor(off / gap) - 1;   // 먼 얼음 기둥
+  ctx.fillStyle = 'rgba(120,180,220,.16)';
+  for (let i = first; i < first + VW / gap + 3; i++) {
+    const x = i * gap - off + hash(i + 11) * 40, h = 120 + hash(i + 5) * 140;
+    ctx.beginPath(); ctx.moveTo(x - 26, VH); ctx.lineTo(x - 10, VH - h); ctx.lineTo(x + 4, VH - h - 24); ctx.lineTo(x + 22, VH); ctx.fill();
+  }
+  const cg = 150, coff = camX * 0.35, cf = Math.floor(coff / cg) - 1;     // 빛나는 결정
+  for (let i = cf; i < cf + VW / cg + 3; i++) {
+    const x = i * cg - coff + hash(i + 21) * 60, s = 14 + hash(i + 2) * 16, b = 395;
+    ctx.fillStyle = 'rgba(95,179,224,.35)';
+    ctx.beginPath(); ctx.moveTo(x - s * 0.5, b); ctx.lineTo(x - s * 0.3, b - s * 1.6); ctx.lineTo(x, b - s * 2.2); ctx.lineTo(x + s * 0.3, b - s * 1.5); ctx.lineTo(x + s * 0.5, b); ctx.fill();
+  }
+  const ig = 46, ioff = camX * 0.5, iff = Math.floor(ioff / ig) - 1;       // 고드름 천장
+  ctx.fillStyle = '#16304d'; ctx.fillRect(0, 0, VW, 22);
+  for (let i = iff; i < iff + VW / ig + 3; i++) {
+    const x = i * ig - ioff, len = 30 + hash(i + 3) * 70, tip = x + ig * 0.5 + hash(i) * 10 - 5;
+    ctx.fillStyle = '#16304d';
+    ctx.beginPath(); ctx.moveTo(x, 20); ctx.lineTo(x + ig, 20); ctx.lineTo(tip, 20 + len); ctx.fill();
+    ctx.fillStyle = 'rgba(180,225,250,.35)';
+    ctx.beginPath(); ctx.moveTo(tip - 4, 20 + len * 0.3); ctx.lineTo(tip - 1, 20 + len * 0.3); ctx.lineTo(tip, 20 + len); ctx.fill();
+  }
+  ctx.fillStyle = 'rgba(230,245,255,.6)';                                  // 눈송이
+  for (let k = 0; k < 40; k++) {
+    const sx = ((hash(k) * VW + now * 0.02 * (0.5 + hash(k + 1)) - camX * 0.3) % VW + VW) % VW;
+    const sy = (hash(k + 9) * VH + now * 0.03 * (0.5 + hash(k + 2))) % VH;
+    ctx.fillRect(sx, sy, 2, 2);
+  }
+}
+
+function drawVolcano(camX, now) {
+  const g = ctx.createLinearGradient(0, 0, 0, VH);
+  g.addColorStop(0, '#1c0a0a'); g.addColorStop(1, '#4a160e');
+  ctx.fillStyle = g; ctx.fillRect(0, 0, VW, VH);
+
+  const gap = 320, off = camX * 0.12, first = Math.floor(off / gap) - 1;   // 먼 화산들
+  for (let i = first; i < first + VW / gap + 3; i++) {
+    const x = i * gap - off + hash(i + 31) * 80, h = 170 + hash(i + 4) * 90, top = 380 - h;
+    ctx.fillStyle = '#2a1210';
+    ctx.beginPath(); ctx.moveTo(x - 170, 400); ctx.lineTo(x - 26, top); ctx.lineTo(x + 26, top); ctx.lineTo(x + 170, 400); ctx.fill();
+    ctx.fillStyle = 'rgba(255,106,42,.7)';
+    ctx.beginPath(); ctx.ellipse(x, top + 2, 24, 5, 0, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = 'rgba(255,106,42,.35)';
+    ctx.beginPath(); ctx.moveTo(x - 4, top + 4); ctx.lineTo(x + 6, top + 4); ctx.lineTo(x + 30 + hash(i) * 30, top + h * 0.6); ctx.lineTo(x + 22 + hash(i) * 30, top + h * 0.6); ctx.fill();
+    ctx.fillStyle = 'rgba(90,60,55,.35)';                                  // 연기
+    for (let s = 0; s < 3; s++) {
+      const rise = ((now / 40 + s * 40 + i * 13) % 120);
+      ctx.beginPath(); ctx.arc(x + Math.sin(rise / 20 + s) * 10, top - 10 - rise, 14 + rise * 0.2, 0, Math.PI * 2); ctx.fill();
+    }
+  }
+  ctx.fillStyle = '#331614';                                               // 가까운 바위 언덕
+  ctx.beginPath(); ctx.moveTo(0, VH);
+  for (let x = 0; x <= VW; x += 16) {
+    const u = x + camX * 0.35;
+    ctx.lineTo(x, 360 - 30 * (0.5 + 0.5 * Math.sin(u / 70)) - 18 * hash(Math.floor(u / 16)));
+  }
+  ctx.lineTo(VW, VH); ctx.fill();
+  ctx.fillStyle = 'rgba(255,150,70,.75)';                                  // 떠오르는 불씨
+  for (let k = 0; k < 36; k++) {
+    const sx = ((hash(k) * VW - camX * 0.3 + Math.sin(now / 600 + k) * 12) % VW + VW) % VW;
+    const sy = VH - ((now * 0.04 * (0.5 + hash(k + 1)) + hash(k + 9) * VH) % VH);
+    ctx.fillRect(sx, sy, 2, 2);
+  }
+}
+
+function drawBackground(camX, theme, now) {
+  if (theme === 'ice') { drawCave(camX, now); return; }
+  if (theme === 'volcano') { drawVolcano(camX, now); return; }
+  const sky = ctx.createLinearGradient(0, 0, 0, VH);
+  sky.addColorStop(0, '#8fd0e6'); sky.addColorStop(1, '#e4f3d2');
+  ctx.fillStyle = sky; ctx.fillRect(0, 0, VW, VH);
+  ctx.fillStyle = 'rgba(255,250,220,.85)';
+  ctx.beginPath(); ctx.arc(640 - camX * 0.03, 80, 34, 0, Math.PI * 2); ctx.fill();
+
+  const hills = (par, color, base, amp, period) => {
+    ctx.fillStyle = color; ctx.beginPath(); ctx.moveTo(0, VH);
+    for (let x = 0; x <= VW; x += 8) {
+      const u = x + camX * par;
+      ctx.lineTo(x, base - amp * (0.5 + 0.5 * Math.sin(u / period)) - amp * 0.35 * Math.sin(u / (period * 0.37) + 1));
+    }
+    ctx.lineTo(VW, VH); ctx.fill();
+  };
+  hills(0.15, '#a7d39a', 300, 70, 140);
+  hills(0.3, '#7fbb76', 340, 55, 90);
+
+  const gap = 70, off = camX * 0.5, first = Math.floor(off / gap) - 1;
+  for (let i = first; i < first + VW / gap + 3; i++) {
+    const x = i * gap - off + hash(i) * 30, h = 70 + hash(i + 7) * 60, base = 392;
+    ctx.fillStyle = '#4a3a2a'; ctx.fillRect(x - 4, base - h * 0.45, 8, h * 0.45);
+    ctx.fillStyle = hash(i + 3) > 0.5 ? '#3f8a4e' : '#4f9a57';
+    ctx.beginPath(); ctx.arc(x, base - h * 0.55, h * 0.3, 0, Math.PI * 2); ctx.arc(x - h * 0.16, base - h * 0.38, h * 0.22, 0, Math.PI * 2); ctx.arc(x + h * 0.17, base - h * 0.4, h * 0.22, 0, Math.PI * 2); ctx.fill();
+  }
+}
+
+function drawTiles(lv, camX) {
+  const ice = lv.theme === 'ice', vol = lv.theme === 'volcano', now = performance.now();
+  const c0 = Math.max(0, Math.floor(camX / T)), c1 = Math.min(lv.cols - 1, Math.ceil((camX + VW) / T));
+  for (let y = 0; y < lv.rows; y++) for (let x = c0; x <= c1; x++) {
+    const t = lv.grid[y][x];
+    if (!t) continue;
+    const sx = Math.round(x * T - camX), sy = y * T;
+    const topOpen = y === 0 || !lv.grid[y - 1][x] || lv.grid[y - 1][x] === 4;
+    if ((t === 1 || t === 3) && ice) {
+      ctx.fillStyle = t === 1 ? '#3e4f6b' : '#46587a';
+      ctx.fillRect(sx, sy, T, T);
+      ctx.fillStyle = '#33425a';
+      ctx.fillRect(sx + 6 + hash(x * 3 + y) * 16, sy + 14 + hash(x + y * 5) * 10, 5, 3);
+      if (t === 3) { ctx.fillStyle = '#2c3a52'; ctx.fillRect(sx, sy + T - 5, T, 5); }
+      if (topOpen) {
+        ctx.fillStyle = '#b9dcf2'; ctx.fillRect(sx, sy, T, 9);
+        ctx.fillStyle = '#eef8ff'; ctx.fillRect(sx, sy, T, 6);
+        for (let i = 0; i < 3; i++) ctx.fillRect(sx + i * 11 + 3, sy + 6, 6, 1 + hash(x * 4 + i) * 3);
+      }
+    } else if ((t === 1 || t === 3) && vol) {
+      ctx.fillStyle = t === 1 ? '#3b2a2a' : '#44302e';
+      ctx.fillRect(sx, sy, T, T);
+      ctx.fillStyle = '#2e2020';
+      ctx.fillRect(sx + 6 + hash(x * 3 + y) * 16, sy + 16 + hash(x + y * 5) * 10, 5, 3);
+      ctx.fillStyle = 'rgba(255,110,40,.55)';
+      ctx.fillRect(sx + 4 + hash(x * 7 + y) * 18, sy + 11 + hash(x + y * 3) * 12, 7, 2);
+      if (t === 3) { ctx.fillStyle = '#2a1c1c'; ctx.fillRect(sx, sy + T - 5, T, 5); }
+      if (topOpen) { ctx.fillStyle = '#6b3a2a'; ctx.fillRect(sx, sy, T, 7); ctx.fillStyle = '#a0522d'; ctx.fillRect(sx, sy, T, 2); }
+    } else if (t === 6) {
+      const surf = y === 0 || lv.grid[y - 1][x] !== 6;
+      const top = surf ? sy + 6 + Math.sin(now / 300 + x * 0.9) * 2 : sy;
+      const lg = ctx.createLinearGradient(0, sy, 0, sy + T);
+      lg.addColorStop(0, '#ff6a1f'); lg.addColorStop(1, '#b3240d');
+      ctx.fillStyle = lg; ctx.fillRect(sx, top, T, sy + T - top);
+      if (surf) {
+        ctx.fillStyle = '#ffb347'; ctx.fillRect(sx, top, T, 3);
+        const b = (now / 700 + hash(x)) % 1;                                  // 뽀글뽀글 거품
+        if (hash(x + 2) > 0.5) { ctx.fillStyle = 'rgba(255,220,120,.8)'; ctx.beginPath(); ctx.arc(sx + 8 + hash(x) * 16, top + 10 - b * 12, 2 + b * 2, 0, Math.PI * 2); ctx.fill(); }
+      }
+    } else if (t === 7) {
+      const s = lv.shaking && lv.shaking.get(y * lv.cols + x);
+      const ox = s && !s.gone ? Math.sin(now / 25 + x) * 2 : 0;
+      ctx.fillStyle = '#6a4a3a'; ctx.fillRect(sx + ox, sy, T, T);
+      ctx.fillStyle = '#8a6450'; ctx.fillRect(sx + ox, sy, T, 4);
+      ctx.strokeStyle = '#2a1a14'; ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.moveTo(sx + ox + 8, sy + 3); ctx.lineTo(sx + ox + 14, sy + 14); ctx.lineTo(sx + ox + 10, sy + 26);
+      ctx.moveTo(sx + ox + 23, sy + 5); ctx.lineTo(sx + ox + 19, sy + 17); ctx.lineTo(sx + ox + 25, sy + 28);
+      ctx.stroke();
+      ctx.fillStyle = '#4a3228'; ctx.fillRect(sx + ox + T - 1, sy, 1, T);
+    } else if (t === 5) {
+      ctx.fillStyle = '#8fcff0'; ctx.fillRect(sx, sy, T, T);
+      ctx.fillStyle = '#bfe6fa';
+      ctx.beginPath(); ctx.moveTo(sx + 6, sy + T - 4); ctx.lineTo(sx + 14, sy + 7); ctx.lineTo(sx + 19, sy + 7); ctx.lineTo(sx + 11, sy + T - 4); ctx.fill();
+      ctx.fillStyle = '#6fb8de'; ctx.fillRect(sx + T - 1, sy, 1, T);
+      if (topOpen) { ctx.fillStyle = '#eaf8ff'; ctx.fillRect(sx, sy, T, 4); }
+      if (y === lv.rows - 1 || !lv.grid[y + 1][x]) { ctx.fillStyle = '#5fa8d0'; ctx.fillRect(sx, sy + T - 3, T, 3); }
+    } else if (t === 1 || t === 3) {
+      ctx.fillStyle = t === 1 ? '#7a4e2f' : '#6b5a4a';
+      ctx.fillRect(sx, sy, T, T);
+      ctx.fillStyle = t === 1 ? '#6a4228' : '#5a4b3e';
+      ctx.fillRect(sx + 6 + hash(x * 3 + y) * 16, sy + 14 + hash(x + y * 5) * 10, 4, 3);
+      if (t === 3) { ctx.fillStyle = '#4c4036'; ctx.fillRect(sx, sy + T - 5, T, 5); }
+      if (topOpen) {
+        ctx.fillStyle = '#58b553'; ctx.fillRect(sx, sy, T, 9);
+        ctx.fillStyle = '#7fd06f'; ctx.fillRect(sx, sy, T, 3);
+        ctx.fillStyle = '#58b553';
+        for (let i = 0; i < 4; i++) ctx.fillRect(sx + i * 8 + 2, sy + 9, 4, 2 + hash(x * 4 + i) * 3);
+      }
+    } else if (t === 4) {
+      for (let i = 0; i < 2; i++) {
+        const bx = sx + 2 + i * 14;
+        ctx.fillStyle = ice ? '#6fa9cc' : vol ? '#1e1620' : '#7d868c';
+        ctx.beginPath(); ctx.moveTo(bx, sy + T); ctx.lineTo(bx + 7, sy + T - 18); ctx.lineTo(bx + 14, sy + T); ctx.fill();
+        ctx.fillStyle = ice ? '#e6f6ff' : vol ? '#7a5a8a' : '#d4dbe0';
+        ctx.beginPath(); ctx.moveTo(bx + 3, sy + T); ctx.lineTo(bx + 7, sy + T - 15); ctx.lineTo(bx + 8, sy + T); ctx.fill();
+      }
+    } else if (t === 2) {
+      ctx.fillStyle = '#c98a47'; ctx.fillRect(sx, sy, T, T);
+      ctx.strokeStyle = '#8e5a2b'; ctx.lineWidth = 3;
+      ctx.strokeRect(sx + 1.5, sy + 1.5, T - 3, T - 3);
+      ctx.beginPath(); ctx.moveTo(sx + 4, sy + 4); ctx.lineTo(sx + T - 4, sy + T - 4); ctx.stroke();
+    }
+  }
+}
+
+function drawCoin(x, y, now) {
+  const s = Math.abs(Math.cos(now / 320 + x * 0.02));
+  const rx = Math.max(2, 10 * s);
+  ctx.fillStyle = '#c48f00'; ctx.beginPath(); ctx.ellipse(x, y + 1, rx, 11, 0, 0, Math.PI * 2); ctx.fill();
+  ctx.fillStyle = '#f5c518'; ctx.beginPath(); ctx.ellipse(x, y, rx, 10.5, 0, 0, Math.PI * 2); ctx.fill();
+  if (s > 0.4) { ctx.fillStyle = '#fff1a8'; ctx.fillRect(x - rx * 0.35, y - 5, Math.max(1, rx * 0.25), 9); }
+}
+
+function drawFlag(lv, camX, now) {
+  const x = lv.flag * T + 14 - camX, top = 12 * T - 5 * T;
+  ctx.fillStyle = '#e8e2cf'; ctx.fillRect(x, top, 4, 5 * T);
+  ctx.fillStyle = '#f5c518'; ctx.beginPath(); ctx.arc(x + 2, top, 6, 0, Math.PI * 2); ctx.fill();
+  ctx.fillStyle = '#e5484d'; ctx.beginPath(); ctx.moveTo(x + 4, top + 6);
+  for (let i = 0; i <= 10; i++) ctx.lineTo(x + 4 + i * 4.4, top + 6 + i * 1.6 + Math.sin(now / 200 + i * 0.6) * 2);
+  ctx.lineTo(x + 4, top + 38); ctx.fill();
+}
+
+function drawMover(m, camX) {
+  const x = Math.round(m.cx - camX), y = Math.round(m.cy);
+  ctx.fillStyle = 'rgba(60,40,25,.5)';
+  ctx.fillRect(x + 8, y - 400, 2, 400); ctx.fillRect(x + m.w - 10, y - 400, 2, 400);   // 매달린 줄
+  ctx.fillStyle = '#8a5a30'; ctx.beginPath(); ctx.roundRect(x, y, m.w, 16, 6); ctx.fill();
+  ctx.fillStyle = '#b97c45'; ctx.beginPath(); ctx.roundRect(x, y, m.w, 9, 5); ctx.fill();
+  ctx.fillStyle = '#7fd06f'; ctx.fillRect(x + 4, y, m.w - 8, 3);
+  ctx.fillStyle = '#6e4623';
+  for (let i = 24; i < m.w - 8; i += 32) ctx.fillRect(x + i, y + 4, 2, 10);
+}
+
+function drawPenguin(e, camX, now) {
+  const f = e.vx > 0 ? 1 : -1;
+  ctx.save();
+  ctx.translate(e.x - camX + 12, e.y + 24);
+  if (e.dead) { ctx.globalAlpha = Math.max(0, e.deadT / 0.5); ctx.scale(1.4, 0.3); }   // 밟혀서 납작
+  else ctx.rotate(Math.sin(now / 120 + e.minX) * 0.12);   // 뒤뚱뒤뚱
+  ctx.fillStyle = '#f59e2b';
+  ctx.beginPath(); ctx.ellipse(-6, -1, 5, 2.5, 0, 0, Math.PI * 2); ctx.ellipse(6, -1, 5, 2.5, 0, 0, Math.PI * 2); ctx.fill();
+  ctx.fillStyle = '#22304a'; ctx.beginPath(); ctx.ellipse(0, -12, 11, 12.5, 0, 0, Math.PI * 2); ctx.fill();
+  ctx.fillStyle = '#1a2539'; ctx.beginPath(); ctx.ellipse(-f * 10, -10, 3, 7, -f * 0.4, 0, Math.PI * 2); ctx.fill();
+  ctx.fillStyle = '#f2f6fb'; ctx.beginPath(); ctx.ellipse(f * 2, -10, 7, 9, 0, 0, Math.PI * 2); ctx.fill();
+  ctx.fillStyle = '#fff';
+  ctx.beginPath(); ctx.arc(f * 3 - 3, -17, 2.6, 0, Math.PI * 2); ctx.arc(f * 3 + 3, -17, 2.6, 0, Math.PI * 2); ctx.fill();
+  ctx.fillStyle = '#111';
+  ctx.beginPath(); ctx.arc(f * 3.8 - 3, -17, 1.3, 0, Math.PI * 2); ctx.arc(f * 3.8 + 3, -17, 1.3, 0, Math.PI * 2); ctx.fill();
+  ctx.fillStyle = '#f59e2b';
+  ctx.beginPath(); ctx.moveTo(f * 7, -14); ctx.lineTo(f * 13, -12); ctx.lineTo(f * 7, -10); ctx.fill();
+  ctx.restore();
+}
+
+function drawSlime(e, camX, now) {
+  const f = e.vx > 0 ? 1 : -1;
+  ctx.save();
+  ctx.translate(e.x - camX + 12, e.y + 24);
+  if (e.dead) { ctx.globalAlpha = Math.max(0, e.deadT / 0.5); ctx.scale(1.4, 0.3); }
+  else { const s = 1 + Math.sin(now / 150 + e.minX) * 0.08; ctx.scale(s, 1 / s); }   // 말랑말랑
+  ctx.fillStyle = '#e8461f';
+  ctx.beginPath(); ctx.moveTo(-12, 0); ctx.bezierCurveTo(-13, -22, 13, -22, 12, 0); ctx.closePath(); ctx.fill();
+  ctx.fillStyle = '#ffb347'; ctx.beginPath(); ctx.ellipse(-5, -12, 3, 2, -0.5, 0, Math.PI * 2); ctx.fill();
+  ctx.fillStyle = '#2a0a05';
+  ctx.beginPath(); ctx.ellipse(f * 3 - 3, -8, 2, 3, 0, 0, Math.PI * 2); ctx.ellipse(f * 3 + 4, -8, 2, 3, 0, 0, Math.PI * 2); ctx.fill();
+  ctx.fillStyle = '#fff';
+  ctx.fillRect(f * 3 - 3.5, -10, 1, 1); ctx.fillRect(f * 3 + 3.5, -10, 1, 1);
+  ctx.restore();
+}
+
+function drawHat(c, x, y, w, face, hat) {
+  const cx = x + w / 2;
+  if (hat === 'leaf') {
+    c.fillStyle = '#6b4a2a'; c.fillRect(cx - 1, y - 6, 2, 7);
+    c.fillStyle = '#58b553'; c.beginPath(); c.ellipse(cx + 5, y - 7, 7, 3.5, -0.5, 0, Math.PI * 2); c.fill();
+    c.fillStyle = '#7fd06f'; c.beginPath(); c.ellipse(cx + 4, y - 8, 4, 1.4, -0.5, 0, Math.PI * 2); c.fill();
+  } else if (hat === 'ribbon') {
+    const rx = cx - face * 5, ry = y + 1;
+    c.fillStyle = '#e5484d'; c.beginPath();
+    c.moveTo(rx, ry); c.lineTo(rx - 8, ry - 6); c.lineTo(rx - 8, ry + 5); c.closePath();
+    c.moveTo(rx, ry); c.lineTo(rx + 8, ry - 6); c.lineTo(rx + 8, ry + 5); c.closePath(); c.fill();
+    c.fillStyle = '#b8323a'; c.beginPath(); c.arc(rx, ry, 2.6, 0, Math.PI * 2); c.fill();
+  } else if (hat === 'cap') {
+    c.fillStyle = '#3b6fd6'; c.beginPath(); c.ellipse(cx, y + 3, w / 2 - 1, 9, 0, Math.PI, 0); c.fill();
+    c.fillStyle = '#2c55aa'; c.fillRect(face > 0 ? cx : cx - (w / 2 + 7), y + 1, w / 2 + 7, 3);
+    c.fillStyle = '#fff'; c.beginPath(); c.arc(cx, y - 5, 1.6, 0, Math.PI * 2); c.fill();
+  } else if (hat === 'wizard') {
+    c.fillStyle = '#5b3fa8'; c.beginPath(); c.moveTo(cx - 10, y + 2); c.lineTo(cx - face * 4, y - 21); c.lineTo(cx + 10, y + 2); c.fill();
+    c.fillRect(cx - 13, y, 26, 3);
+    c.fillStyle = '#ffd23f'; c.beginPath(); c.arc(cx - face, y - 8, 2.2, 0, Math.PI * 2); c.fill();
+  } else if (hat === 'crown') {
+    c.fillStyle = '#f5c518'; c.beginPath();
+    c.moveTo(cx - 9, y + 2); c.lineTo(cx - 9, y - 8); c.lineTo(cx - 4.5, y - 3); c.lineTo(cx, y - 10);
+    c.lineTo(cx + 4.5, y - 3); c.lineTo(cx + 9, y - 8); c.lineTo(cx + 9, y + 2); c.fill();
+    c.fillStyle = '#e5484d'; c.beginPath(); c.arc(cx, y - 1, 1.8, 0, Math.PI * 2); c.fill();
+  }
+}
+
+function drawBody(c, x, y, w, h, face, hex, hat) {
+  c.fillStyle = '#2b2118';
+  c.fillRect(x + 3, y + h - 4, 6, 4); c.fillRect(x + w - 9, y + h - 4, 6, 4);
+  c.fillStyle = hex;
+  c.beginPath(); c.roundRect(x, y, w, h - 3, 8); c.fill();
+  c.fillStyle = 'rgba(255,255,255,.25)'; c.beginPath(); c.roundRect(x + 3, y + 3, w - 6, 6, 3); c.fill();
+  const ex = x + w / 2 + face * 4;
+  c.fillStyle = '#fff';
+  c.beginPath(); c.arc(ex - 4, y + 12, 3.6, 0, Math.PI * 2); c.arc(ex + 4, y + 12, 3.6, 0, Math.PI * 2); c.fill();
+  c.fillStyle = '#1d1d1d';
+  c.beginPath(); c.arc(ex - 4 + face * 1.4, y + 12.5, 1.8, 0, Math.PI * 2); c.arc(ex + 4 + face * 1.4, y + 12.5, 1.8, 0, Math.PI * 2); c.fill();
+  drawHat(c, x, y, w, face, hat);
+}
+
+function drawPlayer(p, camX) {
+  if (p.inv > 0 && Math.floor(p.inv * 12) % 2) return;   // 다친 직후 깜빡임
+  const sq = p.squash * 0.18;
+  const w = p.w * (1 + sq), h = p.h * (1 - sq);
+  drawBody(ctx, p.x - camX + (p.w - w) / 2, p.y + (p.h - h), w, h, p.face, colorHex(profile.color), profile.hat);
+}
+
+function heart(x, y, full) {
+  ctx.fillStyle = full ? '#e5484d' : 'rgba(0,0,0,.25)';
+  ctx.beginPath();
+  ctx.moveTo(x, y + 5);
+  ctx.bezierCurveTo(x, y - 1, x - 9, y - 1, x - 9, y + 5);
+  ctx.bezierCurveTo(x - 9, y + 10, x, y + 14, x, y + 17);
+  ctx.bezierCurveTo(x, y + 14, x + 9, y + 10, x + 9, y + 5);
+  ctx.bezierCurveTo(x + 9, y - 1, x, y - 1, x, y + 5);
+  ctx.fill();
+}
+
+function drawHud(r) {
+  ctx.fillStyle = 'rgba(18,32,26,.55)';
+  ctx.beginPath(); ctx.roundRect(10, 10, 300, 36, 10); ctx.fill();
+  for (let i = 0; i < 3; i++) heart(32 + i * 24, 19, i < r.hearts);
+  drawCoin(120, 28, 0);
+  ctx.fillStyle = '#f2eedb'; ctx.font = '20px Jua, sans-serif'; ctx.textBaseline = 'middle';
+  ctx.fillText(`${r.got} / ${r.coins.length}`, 136, 29);
+  ctx.fillText(`${r.time.toFixed(1)}초`, 224, 29);
+  ctx.textAlign = 'right';
+  ctx.fillText(r.stage.name, VW - 18, 29);
+  ctx.textAlign = 'left';
+}
+
+function banner(text, sub) {
+  ctx.fillStyle = 'rgba(18,32,26,.7)'; ctx.fillRect(0, VH / 2 - 44, VW, 88);
+  ctx.fillStyle = '#f2eedb'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+  ctx.font = '34px Jua, sans-serif'; ctx.fillText(text, VW / 2, VH / 2 - (sub ? 10 : 0));
+  if (sub) { ctx.font = '17px "Gowun Dodum", sans-serif'; ctx.fillText(sub, VW / 2, VH / 2 + 22); }
+  ctx.textAlign = 'left';
+}
+
+const preview = forest1();
+let attract = 0;
+function render(now) {
+  if (run) {
+    const r = run, lv = r.lv, p = r.p;
+    const camX = Math.max(0, Math.min(lv.cols * T - VW, p.x + p.w / 2 - VW * 0.4));
+    drawBackground(camX, lv.theme, now);
+    drawTiles(lv, camX);
+    drawFlag(lv, camX, now);
+    for (const m of r.movers) drawMover(m, camX);
+    for (const e of r.enemies) if (!(e.dead && e.deadT <= 0) && e.x > camX - 40 && e.x < camX + VW + 40) (lv.theme === 'volcano' ? drawSlime : drawPenguin)(e, camX, now);
+    for (const c of r.coins) if (!c.taken && c.x > camX - 20 && c.x < camX + VW + 20) drawCoin(c.x - camX, c.y, now);
+    if (r.state !== 'fell' || p.y < lv.rows * T) drawPlayer(p, camX);
+    for (const f of r.fx) {
+      ctx.globalAlpha = 1 - f.t / 0.7;
+      ctx.fillStyle = '#fff6c2'; ctx.font = '18px Jua, sans-serif'; ctx.textAlign = 'center';
+      ctx.fillText(f.text || '+1', f.x - camX, f.y - 12 - f.t * 40);
+      ctx.textAlign = 'left'; ctx.globalAlpha = 1;
+    }
+    drawHud(r);
+    if (r.state === 'fell') banner(r.reason === 'hearts' ? '하트를 모두 잃었어요!' : '앗, 떨어졌어요!', '처음부터 다시 시작해요');
+    if (r.state === 'clear') banner('깃발 도착!');
+  } else {
+    const span = preview.cols * T - VW;
+    const camX = span * (0.5 - 0.5 * Math.cos(attract / 30));
+    drawBackground(camX, 'forest', now);
+    drawTiles(preview, camX);
+    drawFlag(preview, camX, now);
+    for (const c of preview.coins) drawCoin(c.x * T + T / 2 - camX, c.y * T + T / 2, now);
+  }
+}
+
+let last = performance.now(), acc = 0;
+function frame(now) {
+  const dt = Math.min(0.05, (now - last) / 1000);
+  last = now;
+  attract += dt;
+  if (run && (mode === 'play' || mode === 'result')) {
+    acc += dt;
+    while (acc >= STEP) { update(STEP); acc -= STEP; if (!run) break; }
+  } else acc = 0;
+  render(now);
+  if (mode === 'shop') drawTryOn(now);
+  requestAnimationFrame(frame);
+}
+
+// ---------- 시작 ----------
+refreshStats();
+showOverlay('title');
+requestAnimationFrame(frame);
+connect().catch(() => note('랭킹에 연결하지 못했어요. 기록은 이 브라우저에 저장돼요.'));
+</script>

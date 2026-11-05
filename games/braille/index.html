@@ -1,0 +1,815 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>훈맹정음 점자 변환기</title>
+<style>
+  :root { color-scheme: light; }
+  body {
+    margin: 0;
+    background: #fff;
+    color: #111;
+    font-family: "Malgun Gothic", "Apple SD Gothic Neo", sans-serif;
+  }
+  main { max-width: 60rem; margin: 0 auto; padding: 24px 16px; }
+  form { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+  label { font-weight: bold; }
+  input[type="text"] {
+    font-size: 1.25rem; padding: 0.4rem 0.6rem; min-height: 44px; box-sizing: border-box;
+    border: 2px solid #111; border-radius: 6px; min-width: 12rem;
+  }
+  button {
+    font-size: 1.125rem; padding: 0.5rem 1rem; cursor: pointer; min-height: 44px;   /* 누르기 쉬운 크기 */
+    background: #111; color: #fff; border: 2px solid #111; border-radius: 6px;
+  }
+  button.보조 { background: #fff; color: #111; }   /* 글자 색이 아니라 테두리·배경으로도 구분 */
+
+  /* 초점 표시: 두꺼운 파란 테두리 + 흰 여백. 어느 배경 위에서도 눈에 띄고, 모든 요소에 똑같이 적용된다 */
+  :focus-visible { outline: 4px solid #005fcc; outline-offset: 3px; box-shadow: 0 0 0 3px #fff; }
+  input[type="text"]:focus-visible { border-color: #005fcc; }
+
+  .도움말 { margin: 8px 0 0; color: #333; font-size: 0.95rem; }
+  .선택줄 { display: flex; align-items: center; gap: 8px; margin: 12px 0 0; font-weight: normal; }
+  .선택줄 input { width: 1.5rem; height: 1.5rem; margin: 0; }
+
+  [hidden] { display: none !important; }
+
+  /* 모드 고르기: 눌린 쪽은 색만이 아니라 ✔ 표시와 굵은 글씨로도 알 수 있다 */
+  nav { display: flex; gap: 8px; margin: 8px 0 16px; }
+  button.모드 { background: #fff; color: #111; }
+  button.모드[aria-pressed="true"] { background: #111; color: #fff; font-weight: bold; }
+  button.모드[aria-pressed="true"]::before { content: "✔ "; }
+
+  #알림 { min-height: 1.5em; margin: 16px 0 0; color: #333; }
+
+  /* 점자 칸이 줄줄이 놓이는 목록 */
+  .점자줄 {
+    list-style: none; padding: 0; margin: 8px 0 0;
+    display: flex; flex-wrap: wrap; gap: 16px 12px;
+  }
+  .점칸 {
+    display: flex; flex-direction: column; align-items: center; gap: 6px;
+    animation: 나타나기 0.25s ease-out;
+  }
+
+  /* 점판: 2열 3행. 위에서 아래로 채우므로 1·2·3은 왼쪽, 4·5·6은 오른쪽 */
+  .점판 {
+    display: grid;
+    grid-template-columns: repeat(2, 1.5rem);
+    grid-template-rows: repeat(3, 1.5rem);
+    grid-auto-flow: column;
+    gap: 0.5rem; padding: 0.75rem;
+    border: 1px solid #767676; border-radius: 8px;
+  }
+  .점 {
+    box-sizing: border-box; width: 1.5rem; height: 1.5rem; border-radius: 50%;
+    display: flex; align-items: center; justify-content: center;
+  }
+  .점.켜짐 { background: #000; border: 2px solid #000; }            /* 채워진 검은 원 */
+  .점.꺼짐 { background: transparent; border: 2px solid #767676; }  /* 테두리만 있는 회색 원 */
+
+  /* 퀴즈 풀이: 점 안에 1~6 번호를 보여 준다 */
+  .번호보임 .점::after { content: attr(data-번호); font-size: 0.75rem; line-height: 1; }
+  .번호보임 .점.켜짐 { color: #fff; }
+  .번호보임 .점.꺼짐 { color: #555; }
+
+  .자모이름 { font-size: 1rem; color: #333; }
+
+  /* 퀴즈: 보기 4개(2×2)와 결과 */
+  #보기목록 { display: grid; grid-template-columns: repeat(2, minmax(6rem, 10rem)); gap: 12px; margin: 16px 0; }
+  button.보기 { font-size: 2rem; padding: 0.75rem; background: #fff; color: #111; }
+  button.보기[aria-disabled="true"] { cursor: default; }
+  button.보기.정답 { border-width: 4px; border-style: solid; }    /* 두꺼운 실선 */
+  button.보기.오답 { border-style: dashed; }                      /* 점선 */
+  .보기표시 { display: block; font-size: 1rem; }
+  #결과영역 { margin: 16px 0; max-width: 40rem; }
+  .결과글 { font-weight: bold; font-size: 1.125rem; }
+
+  @keyframes 나타나기 {
+    from { opacity: 0; transform: translateY(6px); }
+    to   { opacity: 1; transform: none; }
+  }
+  @media (prefers-reduced-motion: reduce) { .점칸 { animation: none; } }
+
+  /* 윈도우 고대비 모드: 배경색이 사라져도 켜진 점(꽉 찬 원)과 꺼진 점(빈 원)이 구분되게 한다 */
+  @media (forced-colors: active) {
+    .점.켜짐 { forced-color-adjust: none; background: CanvasText; border-color: CanvasText; }
+    .점.꺼짐 { forced-color-adjust: none; background: Canvas; border-color: GrayText; }
+    .번호보임 .점.켜짐 { color: Canvas; }
+    .번호보임 .점.꺼짐 { color: CanvasText; }
+    button.모드[aria-pressed="true"] { forced-color-adjust: none; background: Highlight; color: HighlightText; }
+  }
+</style>
+</head>
+<body>
+<main>
+  <h1>훈맹정음 점자 변환기</h1>
+
+  <nav aria-label="모드 고르기">
+    <button type="button" id="변환모드버튼" class="모드" aria-pressed="true">점자 변환</button>
+    <button type="button" id="퀴즈모드버튼" class="모드" aria-pressed="false">점자 퀴즈</button>
+  </nav>
+
+  <section id="변환화면" aria-labelledby="변환제목">
+    <h2 id="변환제목" tabindex="-1">점자 변환</h2>
+
+    <form id="변환폼">
+      <label for="입력칸">변환할 한글</label>
+      <input id="입력칸" type="text" value="한글" autocomplete="off" aria-describedby="입력도움말">
+      <button type="submit">점자로 변환</button>
+      <button type="button" id="읽기버튼" class="보조" aria-label="입력한 글 읽어주기 (소리로 듣기)">입력한 글 읽어주기</button>
+    </form>
+    <p id="입력도움말" class="도움말">한글이 점자로 바뀌고, 띄어쓰기는 점이 없는 빈 칸으로 보여요. 숫자와 영어는 건너뛰어요.</p>
+
+    <label class="선택줄" id="자모소리줄">
+      <input type="checkbox" id="자모소리켜기" checked aria-describedby="자모소리도움말">
+      점자 칸마다 자모 이름을 소리로 읽어 주기
+    </label>
+    <p id="자모소리도움말" class="도움말">화면 낭독기를 쓰는 분은 이 칸을 끄면 소리가 겹치지 않아요.</p>
+
+    <p id="알림" role="status"></p>
+    <ol id="점자목록" class="점자줄" role="list" aria-label="점자 변환 결과"></ol>
+  </section>
+
+  <section id="퀴즈화면" aria-label="점자 퀴즈" hidden>
+    <h2 id="문제안내" tabindex="-1">이 점자는 어떤 글자일까요?</h2>
+    <ol id="문제칸목록" class="점자줄" role="list" aria-label="문제 점자"></ol>
+    <div id="보기목록" role="group" aria-label="보기 네 개"></div>
+    <div id="결과영역" role="status"></div>
+    <button type="button" id="다음문제버튼" hidden>다음 문제</button>
+  </section>
+</main>
+
+<script>
+// ===== braille-data.js =====
+// ─────────────────────────────────────────────────────────────
+// 한글 점자(정자) 변환표 — 「한국 점자 규정」 일람표 기준
+// 점 번호: 왼쪽 위부터 1,2,3 / 오른쪽 위부터 4,5,6  (읽기 기준)
+// 값 형식: [1,2,6]  = 한 칸,  [[3,4,5],[1,2,3,5]] = 두 칸
+// ※ 약자·약어(가/나/억/언… , 그래서/그러나…)는 포함하지 않은 '정자' 표기입니다.
+// ─────────────────────────────────────────────────────────────
+
+const 된소리표 = [6];        // ㄲㄸㅃㅆㅉ 초성 앞에 붙임 (점형이 ㅅ과 동일)
+const 붙임표   = [3, 6];
+const 초성ㅇ밝힘 = [1, 2, 4, 5]; // 원칙적으로 안 적지만, 밝혀 적을 때만 사용
+
+const 초성표 = {
+  'ㄱ': [4],
+  'ㄲ': [된소리표, [4]],      // 된소리표 + ㄱ
+  'ㄴ': [1, 4],
+  'ㄷ': [2, 4],
+  'ㄸ': [된소리표, [2, 4]],
+  'ㄹ': [5],
+  'ㅁ': [1, 5],
+  'ㅂ': [4, 5],
+  'ㅃ': [된소리표, [4, 5]],
+  'ㅅ': [6],
+  'ㅆ': [된소리표, [6]],
+  'ㅇ': [],                  // 초성 ㅇ은 적지 않는다
+  'ㅈ': [4, 6],
+  'ㅉ': [된소리표, [4, 6]],
+  'ㅊ': [5, 6],
+  'ㅋ': [1, 2, 4],
+  'ㅌ': [1, 2, 5],
+  'ㅍ': [1, 4, 5],
+  'ㅎ': [2, 4, 5],
+};
+
+const 종성표 = {
+  'ㄱ': [1],                 // ← 초성 ㄱ(4점)과 점형이 다르다
+  'ㄲ': [[1], [1]],          // 1점을 두 칸에 거듭 적는다
+  'ㄳ': [[1], [3]],          // 겹받침은 해당 낱자를 순서대로
+  'ㄴ': [2, 5],
+  'ㄵ': [[2, 5], [1, 3]],
+  'ㄶ': [[2, 5], [3, 5, 6]],
+  'ㄷ': [3, 5],
+  'ㄹ': [2],
+  'ㄺ': [[2], [1]],
+  'ㄻ': [[2], [2, 6]],
+  'ㄼ': [[2], [1, 2]],
+  'ㄽ': [[2], [3]],
+  'ㄾ': [[2], [2, 3, 6]],
+  'ㄿ': [[2], [2, 5, 6]],
+  'ㅀ': [[2], [3, 5, 6]],
+  'ㅁ': [2, 6],
+  'ㅂ': [1, 2],
+  'ㅄ': [[1, 2], [3]],
+  'ㅅ': [3],
+  'ㅆ': [3, 4],              // 3점을 두 번 적지 않고 3-4점으로
+  'ㅇ': [2, 3, 5, 6],
+  'ㅈ': [1, 3],
+  'ㅊ': [2, 3],
+  'ㅋ': [2, 3, 5],
+  'ㅌ': [2, 3, 6],
+  'ㅍ': [2, 5, 6],
+  'ㅎ': [3, 5, 6],
+};
+
+const 모음표 = {
+  'ㅏ': [1, 2, 6],
+  'ㅑ': [3, 4, 5],
+  'ㅓ': [2, 3, 4],
+  'ㅕ': [1, 5, 6],
+  'ㅗ': [1, 3, 6],
+  'ㅛ': [3, 4, 6],
+  'ㅜ': [1, 3, 4],
+  'ㅠ': [1, 4, 6],
+  'ㅡ': [2, 4, 6],
+  'ㅣ': [1, 3, 5],
+  'ㅐ': [1, 2, 3, 5],
+  'ㅔ': [1, 3, 4, 5],
+  'ㅖ': [3, 4],
+  'ㅚ': [1, 3, 4, 5, 6],
+  'ㅘ': [1, 2, 3, 6],
+  'ㅝ': [1, 2, 3, 4],
+  'ㅢ': [2, 4, 5, 6],
+  // 딴이(1-2-3-5)를 뒤에 덧붙여 두 칸으로 적는 모음
+  'ㅒ': [[3, 4, 5], [1, 2, 3, 5]],       // ㅑ + 딴이
+  'ㅙ': [[1, 2, 3, 6], [1, 2, 3, 5]],    // ㅘ + 딴이
+  'ㅞ': [[1, 2, 3, 4], [1, 2, 3, 5]],    // ㅝ + 딴이
+  'ㅟ': [[1, 3, 4], [1, 2, 3, 5]],       // ㅜ + 딴이
+};
+
+// ── 유니코드 음절 분해용 ───────────────────────────────────────
+const 초성목록 = ['ㄱ','ㄲ','ㄴ','ㄷ','ㄸ','ㄹ','ㅁ','ㅂ','ㅃ','ㅅ','ㅆ','ㅇ','ㅈ','ㅉ','ㅊ','ㅋ','ㅌ','ㅍ','ㅎ'];
+const 중성목록 = ['ㅏ','ㅐ','ㅑ','ㅒ','ㅓ','ㅔ','ㅕ','ㅖ','ㅗ','ㅘ','ㅙ','ㅚ','ㅛ','ㅜ','ㅝ','ㅞ','ㅟ','ㅠ','ㅡ','ㅢ','ㅣ'];
+const 종성목록 = ['','ㄱ','ㄲ','ㄳ','ㄴ','ㄵ','ㄶ','ㄷ','ㄹ','ㄺ','ㄻ','ㄼ','ㄽ','ㄾ','ㄿ','ㅀ','ㅁ','ㅂ','ㅄ','ㅅ','ㅆ','ㅇ','ㅈ','ㅊ','ㅋ','ㅌ','ㅍ','ㅎ'];
+
+// 값이 한 칸짜리든 여러 칸짜리든 항상 [[...],[...]] 형태로 통일
+function 칸배열(값) {
+  if (!값 || 값.length === 0) return [];
+  return Array.isArray(값[0]) ? 값 : [값];
+}
+
+// 점 번호 배열 → 유니코드 점자 문자 (U+2800 기반)
+const 점비트 = { 1: 0x01, 2: 0x02, 3: 0x04, 4: 0x08, 5: 0x10, 6: 0x20 };
+function 점자문자(칸) {
+  return String.fromCharCode(0x2800 + 칸.reduce((s, d) => s | 점비트[d], 0));
+}
+
+function 분해(음절) {
+  const code = 음절.charCodeAt(0) - 0xac00;
+  if (code < 0 || code > 11171) return null;
+  return {
+    초: 초성목록[Math.floor(code / 588)],
+    중: 중성목록[Math.floor((code % 588) / 28)],
+    종: 종성목록[code % 28],
+  };
+}
+
+// 붙임표 규칙: 받침 없는 글자 뒤에 '예'가 오거나,
+// 모음 ㅑ·ㅘ·ㅜ·ㅝ 뒤에 '애'가 올 때 사이에 붙임표(3-6)를 적는다.
+function 붙임표필요(앞, 뒤) {
+  if (!앞 || !뒤 || 앞.종 !== '') return false;
+  if (뒤.초 === 'ㅇ' && 뒤.중 === 'ㅖ' && 뒤.종 === '') return true;
+  if (뒤.초 === 'ㅇ' && 뒤.중 === 'ㅐ' && 뒤.종 === '' &&
+      ['ㅑ', 'ㅘ', 'ㅜ', 'ㅝ'].includes(앞.중)) return true;
+  return false;
+}
+
+/**
+ * 한글 문자열 → 점자(정자). 약자·약어는 적용하지 않는다.
+ * @returns {{cells: number[][], text: string}}
+ */
+function 점역(문자열) {
+  const cells = [];
+  let 앞음절 = null;
+
+  for (const 글자 of 문자열) {
+    const j = 분해(글자);
+
+    if (!j) {                       // 한글 음절이 아니면
+      if (글자 === ' ') cells.push([]);   // 빈 칸 = 띄어쓰기
+      앞음절 = null;
+      continue;
+    }
+
+    if (붙임표필요(앞음절, j)) cells.push(붙임표);
+
+    cells.push(...칸배열(초성표[j.초]));
+    cells.push(...칸배열(모음표[j.중]));
+    if (j.종) cells.push(...칸배열(종성표[j.종]));
+
+    앞음절 = j;
+  }
+
+  return { cells, text: cells.map(점자문자).join('') };
+}
+
+// 사용 예
+// 점역('한글').text        →  ⠚⠣⠒⠈⠮⠂
+// 점역('꽃').cells         →  [[6],[4],[1,3,6],[2,3]]
+// 점역('없다').cells       →  [[2,3,4],[1,2],[3],[2,4],[1,2,6]]
+// 점역('문화예술').text     →  … '화'와 '예' 사이에 붙임표(3-6) 자동 삽입
+</script>
+<script>
+// ===== 음절분해.js =====
+// 한글 한 글자를 초성·중성·종성으로 나눈다. (braille-data.js를 먼저 불러와야 함)
+// 한글 음절은 유니코드 '가'(0xAC00)부터 '힣'(0xD7A3)까지 순서대로 놓여 있다.
+// 한글이 아니거나 한 글자가 아니면 null을 돌려준다.
+function 음절분해(글자) {
+  if (typeof 글자 !== 'string' || 글자.length !== 1) return null;
+
+  const 가로부터 = 글자.charCodeAt(0) - 0xac00;   // '가'에서 몇 번째 글자인지
+  if (가로부터 < 0 || 가로부터 > 11171) return null;
+
+  const 초성번호 = Math.floor(가로부터 / 588);          // 588 = 중성 21개 × 종성 28개
+  const 중성번호 = Math.floor((가로부터 % 588) / 28);   // 28 = 종성 개수
+  const 종성번호 = 가로부터 % 28;                       // 0이면 받침 없음
+
+  return {
+    초성: 초성목록[초성번호],
+    중성: 중성목록[중성번호],
+    종성: 종성목록[종성번호],   // 받침이 없으면 '' (빈 문자열)
+  };
+}
+
+// 초성·중성·종성 낱자를 합쳐 한글 한 글자로 만든다. 음절분해를 거꾸로 하는 계산이다.
+// 0xAC00 + (초성번호 × 21 + 중성번호) × 28 + 종성번호. 목록에 없는 낱자가 있으면 null.
+function 음절조합(초성, 중성, 종성) {
+  const 초성번호 = 초성목록.indexOf(초성);
+  const 중성번호 = 중성목록.indexOf(중성);
+  const 종성번호 = 종성목록.indexOf(종성);
+  if (초성번호 < 0 || 중성번호 < 0 || 종성번호 < 0) return null;
+  return String.fromCharCode(0xac00 + (초성번호 * 21 + 중성번호) * 28 + 종성번호);
+}
+</script>
+<script>
+// ===== 자모이름.js =====
+// 자모를 소리 내어 읽을 때 쓰는 이름표. (점형이 아니라 '읽는 이름'만 적은 표)
+// 화면 낭독기가 'ㅎ' 같은 낱자를 못 읽는 경우가 있어서, 설명 글에도 이 이름을 함께 적는다.
+const 자모읽는이름 = {
+  'ㄱ': '기역', 'ㄲ': '쌍기역', 'ㄳ': '기역시옷', 'ㄴ': '니은', 'ㄵ': '니은지읒', 'ㄶ': '니은히읗',
+  'ㄷ': '디귿', 'ㄸ': '쌍디귿', 'ㄹ': '리을', 'ㄺ': '리을기역', 'ㄻ': '리을미음', 'ㄼ': '리을비읍',
+  'ㄽ': '리을시옷', 'ㄾ': '리을티읕', 'ㄿ': '리을피읖', 'ㅀ': '리을히읗', 'ㅁ': '미음', 'ㅂ': '비읍',
+  'ㅃ': '쌍비읍', 'ㅄ': '비읍시옷', 'ㅅ': '시옷', 'ㅆ': '쌍시옷', 'ㅇ': '이응', 'ㅈ': '지읒',
+  'ㅉ': '쌍지읒', 'ㅊ': '치읓', 'ㅋ': '키읔', 'ㅌ': '티읕', 'ㅍ': '피읖', 'ㅎ': '히읗',
+  'ㅏ': '아', 'ㅐ': '애', 'ㅑ': '야', 'ㅒ': '얘', 'ㅓ': '어', 'ㅔ': '에', 'ㅕ': '여',
+  'ㅖ': '예', 'ㅗ': '오', 'ㅘ': '와', 'ㅙ': '왜', 'ㅚ': '외', 'ㅛ': '요', 'ㅜ': '우',
+  'ㅝ': '워', 'ㅞ': '웨', 'ㅟ': '위', 'ㅠ': '유', 'ㅡ': '으', 'ㅢ': '의', 'ㅣ': '이',
+};
+
+// 'ㅎ' → 'ㅎ(히읗)'처럼 자모 뒤에 읽는 이름을 붙인다. 이름이 없으면 자모만 돌려준다.
+function 자모이름붙이기(자모) {
+  const 이름 = 자모읽는이름[자모];
+  return 이름 ? `${자모}(${이름})` : 자모;
+}
+</script>
+<script>
+// ===== 점자변환.js =====
+// 한 자모의 점형을 표에서 찾아 칸 목록에 붙인다. 표에 없으면 false를 돌려준다.
+// 두 칸짜리(예: ㄲ)는 두 칸 모두 같은 자모 이름을 달고, 몇 번째 칸인지 함께 적는다.
+function 자모칸추가(칸목록, 자리, 자모, 표) {
+  if (!(자모 in 표)) return false;
+  const 칸들 = 칸배열(표[자모]);
+  칸들.forEach((점형, 번호) => {
+    칸목록.push({ 점형: 점형, 자모: 자모, 자리: 자리, 순서: 번호 + 1, 개수: 칸들.length });
+  });
+  return true;
+}
+
+// 음절분해 결과({초성, 중성, 종성})를 [{점형, 자모, 자리, 순서, 개수}] 칸 목록으로 바꾼다.
+// 초성은 초성표, 중성은 모음표, 종성은 종성표에서 찾고, 초성 ㅇ은 건너뛴다.
+// 표에 없는 자모가 있거나 분해 결과가 null이면 null을 돌려준다.
+function 점자칸목록만들기(분해결과) {
+  if (!분해결과) return null;
+
+  const 칸목록 = [];
+
+  if (분해결과.초성 !== 'ㅇ') {                      // 초성 ㅇ은 점자를 만들지 않는다
+    if (!자모칸추가(칸목록, '초성', 분해결과.초성, 초성표)) return null;
+  }
+
+  if (!자모칸추가(칸목록, '중성', 분해결과.중성, 모음표)) return null;
+
+  if (분해결과.종성 !== '') {                        // 받침이 없으면 건너뛴다
+    if (!자모칸추가(칸목록, '종성', 분해결과.종성, 종성표)) return null;
+  }
+
+  return 칸목록;
+}
+
+// 음절분해 결과를 점형 배열(한 칸 = 점 번호 배열)로 바꾼다. 실패하면 null.
+function 점자변환(분해결과) {
+  const 칸목록 = 점자칸목록만들기(분해결과);
+  return 칸목록 && 칸목록.map(칸 => 칸.점형);
+}
+
+// 문장을 글자마다 음절분해→점자칸목록으로 바꿔 이어 붙인다.
+// 띄어쓰기는 점이 하나도 없는 빈 칸으로 넣고, 그 밖의 한글이 아닌 글자(숫자, 영어 등)는 건너뛴다.
+// 앞 글자와 이 글자 사이에 붙임표가 필요하면(braille-data.js의 붙임표필요) 붙임표 칸을 먼저 넣는다.
+function 문자열점자칸목록(문자열) {
+  const 전체 = [];
+  let 앞글자분해 = null;
+  for (const 글자 of 문자열) {
+    if (글자 === ' ') {
+      전체.push({ 점형: [], 자모: '띄어쓰기', 자리: '기호', 순서: 1, 개수: 1 });
+      앞글자분해 = null;
+      continue;
+    }
+    const 칸목록 = 점자칸목록만들기(음절분해(글자));
+    if (!칸목록) { 앞글자분해 = null; continue; }
+
+    const 이글자분해 = 분해(글자);
+    if (붙임표필요(앞글자분해, 이글자분해)) {
+      전체.push({ 점형: 붙임표, 자모: '붙임표', 자리: '기호', 순서: 1, 개수: 1 });
+    }
+    전체.push(...칸목록);
+    앞글자분해 = 이글자분해;
+  }
+  // 한글이 하나도 없으면(띄어쓰기만 있으면) 빈 목록을 돌려준다.
+  return 전체.some(칸 => 칸.자모 !== '띄어쓰기') ? 전체 : [];
+}
+</script>
+<script>
+// ===== 점자그리기.js =====
+const 점자칸간격 = 1000;  // 한 칸씩 나타나는 간격 (밀리초). 자모 이름 소리가 끝까지 들리도록 1초로 늘렸다
+let 그리기타이머 = null;
+
+// 점 6개를 1~6번 순서로 만든다. 켜진 점은 '켜짐', 꺼진 점은 '꺼짐' 클래스를 단다.
+// 2열 3행 배치(1·2·3은 왼쪽, 4·5·6은 오른쪽)는 CSS grid가 맡는다.
+function 점판만들기(점형) {
+  const 점판 = document.createElement('div');
+  점판.className = '점판';
+  for (let 번호 = 1; 번호 <= 6; 번호++) {
+    const 점 = document.createElement('span');
+    점.className = 점형.includes(번호) ? '점 켜짐' : '점 꺼짐';
+    점.setAttribute('data-번호', 번호);    // 풀이 화면에서 점 안에 번호를 보여 줄 때 쓴다
+    점판.appendChild(점);
+  }
+  return 점판;
+}
+
+// 점판 하나와 자모 이름을 묶은 점자 한 칸을 만든다.
+// 화면 낭독기는 점판의 aria-label("초성 ㅎ(히읗): 2, 4, 5번 점")을 읽는다.
+function 점칸만들기(칸) {
+  const 항목 = document.createElement('li');
+  항목.className = '점칸';
+
+  const 순서설명 = 칸.개수 > 1 ? `, ${칸.개수}칸 중 ${칸.순서}번째` : '';
+  const 점판 = 점판만들기(칸.점형);
+  점판.setAttribute('role', 'img');
+  // 붙임표 같은 기호 칸은 자리(초성·중성·종성) 없이 이름만 읽는다. 점이 없는 칸(띄어쓰기)은 이름만 읽는다.
+  const 이름 = 칸.자리 === '기호' ? 칸.자모 : `${칸.자리} ${자모이름붙이기(칸.자모)}${순서설명}`;
+  점판.setAttribute('aria-label', 칸.점형.length === 0 ? 이름 : `${이름}: ${칸.점형.join(', ')}번 점`);
+
+  const 자모이름 = document.createElement('span');
+  자모이름.className = '자모이름';
+  자모이름.textContent = 칸.자모;
+  자모이름.setAttribute('aria-hidden', 'true');    // 점판의 aria-label에 이미 들어 있음
+
+  항목.append(점판, 자모이름);
+  return 항목;
+}
+
+// 칸 목록을 0.5초 간격으로 한 칸씩 붙이고, 칸이 나타날 때마다 칸나타난뒤(칸)를 부른다.
+// 새로 그리기 시작하면 이전 타이머와 그림을 지운다.
+// 시작·끝 안내는 알림요소(role="status")에 적어 화면 낭독기가 읽게 한다.
+function 순서대로그리기(칸목록, 목록요소, 알림요소, 칸나타난뒤) {
+  clearTimeout(그리기타이머);
+  목록요소.replaceChildren();
+
+  if (칸목록.length === 0) {
+    알림요소.textContent = '변환할 한글이 없어요.';
+    return;
+  }
+
+  알림요소.textContent = '점자를 그리는 중이에요.';
+  let 번호 = 0;
+  const 한칸그리기 = () => {
+    목록요소.appendChild(점칸만들기(칸목록[번호]));
+    if (칸나타난뒤) 칸나타난뒤(칸목록[번호]);
+    번호++;
+    if (번호 < 칸목록.length) {
+      그리기타이머 = setTimeout(한칸그리기, 점자칸간격);
+    } else {
+      알림요소.textContent = `변환 완료: 점자 ${칸목록.length}칸`;
+    }
+  };
+  한칸그리기();
+}
+</script>
+<script>
+// ===== 음성.js =====
+const 음성지원됨 = 'speechSynthesis' in window && 'SpeechSynthesisUtterance' in window;
+let 전체읽는중 = false;   // 입력한 글을 읽는 동안은 자모 이름 읽기를 쉰다
+let 읽기번호 = 0;         // 가장 최근에 시작한 '전체 읽기'를 구별하는 번호
+let 자모소리켜짐 = true;  // 칸마다 자모 이름을 읽어 줄지 (화면 낭독기와 겹치지 않게 끌 수 있다)
+
+// 브라우저에 있는 한국어(ko) 음성을 찾는다. 인터넷 없이 되는 음성(localService)을 먼저 고른다.
+// 한국어 음성이 없거나 음성 기능이 없는 브라우저면 null을 돌려준다.
+function 한국어음성찾기() {
+  if (!음성지원됨) return null;
+  const 한국어음성들 = speechSynthesis.getVoices()
+    .filter(음성 => 음성.lang.replace('_', '-').toLowerCase().startsWith('ko'));
+  return 한국어음성들.find(음성 => 음성.localService) || 한국어음성들[0] || null;
+}
+
+// 한국어 음성으로 글을 읽는다. 읽고 있던 소리는 끊는다. 읽기를 시작했으면 true.
+// 음성이 없거나 오류가 나면 아무 소리·메시지 없이 false를 돌려준다.
+function 말하기(글, 끝났을때) {
+  try {
+    const 음성 = 한국어음성찾기();
+    if (!음성) return false;
+    speechSynthesis.cancel();
+    const 발화 = new SpeechSynthesisUtterance(글);
+    발화.voice = 음성;
+    발화.lang = 'ko-KR';
+    if (끝났을때) { 발화.onend = 끝났을때; 발화.onerror = 끝났을때; }
+    speechSynthesis.speak(발화);
+    return true;
+  } catch (오류) {
+    return false;
+  }
+}
+
+// 읽고 있던 소리를 멈춘다. (화면을 바꿀 때 쓴다) 음성 기능이 없으면 아무것도 하지 않는다.
+function 소리멈추기() {
+  if (!음성지원됨) return;
+  try { speechSynthesis.cancel(); } catch (오류) { /* 조용히 넘어간다 */ }
+  읽기번호++;
+  전체읽는중 = false;
+}
+
+// 칸마다 자모 이름을 소리로 읽는 기능을 켜거나 끈다. 끄면 읽던 소리도 바로 멈춘다.
+// 화면 낭독기를 쓰는 사람이 두 소리가 겹치지 않게 끌 수 있도록 만들었다.
+function 자모소리설정(켜짐) {
+  자모소리켜짐 = 켜짐;
+  if (!켜짐) 소리멈추기();
+}
+
+// 입력칸의 글 전체를 읽는다. 읽는 동안 전체읽는중을 true로 두고, 끝나면 false로 돌린다.
+// 버튼을 연달아 눌렀을 때 옛 읽기의 끝 신호가 새 읽기를 망치지 않게 번호를 비교한다.
+function 입력글읽기(글) {
+  if (글.trim() === '') return;
+  const 내번호 = ++읽기번호;
+  전체읽는중 = true;
+  const 시작됨 = 말하기(글, () => { if (내번호 === 읽기번호) 전체읽는중 = false; });
+  if (!시작됨) 전체읽는중 = false;
+}
+
+// 점자 칸이 나타날 때 그 칸의 자모 이름을 읽는다. 두 칸짜리는 첫 칸에서만 한 번 읽는다.
+// 순서대로그리기의 '칸나타난뒤' 자리에 넣어 쓴다. (이름표는 자모이름.js에 있다)
+function 자모이름읽기(칸) {
+  if (!자모소리켜짐 || 전체읽는중 || 칸.순서 !== 1) return;
+  const 이름 = 자모읽는이름[칸.자모];
+  if (이름) 말하기(이름);
+}
+</script>
+<script>
+// ===== 퀴즈.js =====
+// 퀴즈 문제에 쓸 낱자 목록. (점형이 아니라 '어떤 낱자를 낼지'만 고른 것)
+// 처음에는 쉬운 낱자만 넣었다. 문제를 넓히고 싶으면 목록에 낱자를 더 적으면 된다.
+const 문제초성목록 = ['ㄱ', 'ㄴ', 'ㄷ', 'ㄹ', 'ㅁ', 'ㅂ', 'ㅅ', 'ㅇ', 'ㅈ', 'ㅊ', 'ㅋ', 'ㅌ', 'ㅍ', 'ㅎ'];
+const 문제중성목록 = ['ㅏ', 'ㅑ', 'ㅓ', 'ㅕ', 'ㅗ', 'ㅛ', 'ㅜ', 'ㅠ', 'ㅡ', 'ㅣ'];
+const 문제종성목록 = ['ㄱ', 'ㄴ', 'ㄹ', 'ㅁ', 'ㅂ', 'ㅇ'];
+
+function 무작위고르기(목록) {
+  return 목록[Math.floor(Math.random() * 목록.length)];
+}
+
+// 목록을 무작위로 섞은 새 목록을 만든다. (뒤에서부터 무작위 자리와 맞바꾸는 방법)
+function 섞기(목록) {
+  const 섞은목록 = [...목록];
+  for (let 자리 = 섞은목록.length - 1; 자리 > 0; 자리--) {
+    const 바꿀자리 = Math.floor(Math.random() * (자리 + 1));
+    [섞은목록[자리], 섞은목록[바꿀자리]] = [섞은목록[바꿀자리], 섞은목록[자리]];
+  }
+  return 섞은목록;
+}
+
+// 한글 한 글자를 점자 칸 목록으로 바꾼다. (변환 함수를 앞으로 쓰는 부분)
+function 글자의칸목록(글자) {
+  return 점자칸목록만들기(음절분해(글자));
+}
+
+// 칸 목록을 '4|1,2,6' 같은 글자로 바꿔서, 두 글자의 점자가 같은지 비교하기 쉽게 한다.
+function 칸목록글자(칸목록) {
+  return 칸목록.map(칸 => 칸.점형.join(',')).join('|');
+}
+
+// 정답 글자에서 초성·중성·종성 중 한 곳만 바꿔 '비슷하지만 다른' 글자를 만든다.
+// 이미 나온 글자이거나 정답과 점자가 똑같은 글자는 고르지 않는다. 못 만들면 null.
+function 비슷한오답만들기(정답분해, 정답점자, 이미나온글자들) {
+  const 바꿀목록 = { 초성: 문제초성목록, 중성: 문제중성목록, 종성: ['', ...문제종성목록] };
+
+  for (let 시도 = 0; 시도 < 50; 시도++) {
+    const 바꿀곳 = 무작위고르기(['초성', '중성', '종성']);
+    const 바뀐분해 = { ...정답분해, [바꿀곳]: 무작위고르기(바꿀목록[바꿀곳]) };
+    const 글자 = 음절조합(바뀐분해.초성, 바뀐분해.중성, 바뀐분해.종성);
+    if (!글자 || 이미나온글자들.includes(글자)) continue;
+
+    const 칸목록 = 글자의칸목록(글자);
+    if (!칸목록 || 칸목록글자(칸목록) === 정답점자) continue;
+    return 글자;
+  }
+  return null;
+}
+
+// 문제 하나를 만든다. 정답 글자를 먼저 정하고 → 점자 칸으로 바꾼 뒤(문제) → 오답 3개를 더한다.
+// 돌려주는 값: { 정답, 칸목록, 보기 }  (보기는 섞인 4글자). 못 만들면 null.
+function 문제만들기() {
+  for (let 시도 = 0; 시도 < 100; 시도++) {
+    const 정답분해 = {
+      초성: 무작위고르기(문제초성목록),
+      중성: 무작위고르기(문제중성목록),
+      종성: Math.random() < 0.5 ? '' : 무작위고르기(문제종성목록),   // 받침 없는 글자가 절반쯤
+    };
+    const 정답 = 음절조합(정답분해.초성, 정답분해.중성, 정답분해.종성);
+    const 칸목록 = 정답 && 글자의칸목록(정답);
+    if (!칸목록) continue;
+
+    const 보기 = [정답];
+    while (보기.length < 4) {
+      const 오답 = 비슷한오답만들기(정답분해, 칸목록글자(칸목록), 보기);
+      if (!오답) break;
+      보기.push(오답);
+    }
+    if (보기.length === 4) return { 정답, 칸목록, 보기: 섞기(보기) };
+  }
+  return null;
+}
+</script>
+<script>
+// ===== 퀴즈화면.js =====
+let 지금문제 = null;
+
+// 문제에 나오는 점자 한 칸을 만든다. 정답이 드러나지 않게 자모 이름은 붙이지 않는다.
+// 화면 낭독기는 "1번째 칸: 2, 4, 5번 점"처럼 켜진 점 번호만 읽는다.
+function 문제칸만들기(칸, 번호) {
+  const 항목 = document.createElement('li');
+  항목.className = '점칸';
+
+  const 점판 = 점판만들기(칸.점형);
+  점판.setAttribute('role', 'img');
+  점판.setAttribute('aria-label', `${번호}번째 칸: ${칸.점형.join(', ')}번 점`);
+
+  const 칸이름 = document.createElement('span');
+  칸이름.className = '자모이름';
+  칸이름.textContent = `${번호}번째 칸`;
+  칸이름.setAttribute('aria-hidden', 'true');
+
+  항목.append(점판, 칸이름);
+  return 항목;
+}
+
+// 문제 제목에 붙일 낭독용 설명을 만든다. 칸 수와 칸마다 켜진 점 번호를 한 번에 들려준다.
+// 제목으로 초점이 오면 화면 낭독기가 이 글을 읽어서, 문제를 바로 파악할 수 있다.
+function 문제낭독글만들기(칸목록) {
+  const 칸설명 = 칸목록.map((칸, 번호) => `${번호 + 1}번째 칸 ${칸.점형.join(', ')}번 점`).join('. ');
+  return `이 점자는 어떤 글자일까요? 점자 ${칸목록.length}칸입니다. ${칸설명}. 보기 네 개 중에서 고르세요.`;
+}
+
+// 보기 글자 하나를 누를 수 있는 버튼으로 만든다. 누르면 답을 확인한다.
+// aria-label에 "보기 1번"을 붙여서 낭독기 사용자가 몇 번째 보기인지 알 수 있게 한다.
+function 보기버튼만들기(글자, 번호, 요소) {
+  const 단추 = document.createElement('button');
+  단추.type = 'button';
+  단추.className = '보기';
+  단추.textContent = 글자;
+  단추.dataset.글자 = 글자;
+  단추.dataset.번호 = 번호;
+  단추.setAttribute('aria-label', `보기 ${번호}번: ${글자}`);
+  단추.addEventListener('click', () => 답확인하기(글자, 요소));
+  return 단추;
+}
+
+// 정답 글자를 점자 칸마다 풀어서 설명하는 화면 조각을 만든다.
+// 점 안에 1~6 번호를 보여 주고, "몇 번 점이 켜져서 어떤 자모인지"를 칸마다 문장으로 적는다.
+function 풀이만들기(정답, 칸목록) {
+  const 풀이 = document.createElement('div');
+
+  const 점판줄 = document.createElement('ol');
+  점판줄.className = '점자줄 번호보임';
+  점판줄.setAttribute('role', 'list');
+  점판줄.setAttribute('aria-label', '정답 점자 풀이');
+  칸목록.forEach(칸 => 점판줄.appendChild(점칸만들기(칸)));
+
+  const 문장목록 = document.createElement('ul');
+  칸목록.forEach((칸, 번호) => {
+    const 두칸설명 = 칸.개수 > 1 ? ` (${칸.개수}칸 중 ${칸.순서}번째)` : '';
+    const 문장 = document.createElement('li');
+    문장.textContent = `${번호 + 1}번째 칸: ${칸.점형.join('·')}번 점이 켜져 있어요 → ${칸.자리} ‘${자모이름붙이기(칸.자모)}’${두칸설명}`;
+    문장목록.appendChild(문장);
+  });
+
+  const 분해 = 음절분해(정답);
+  const 합치기 = document.createElement('p');
+  const 초성말 = 분해.초성 === 'ㅇ' ? '초성 ㅇ(이응, 점자로 쓰지 않아요)' : `초성 ${자모이름붙이기(분해.초성)}`;
+  const 종성말 = 분해.종성 === '' ? '' : ` + 종성 ${자모이름붙이기(분해.종성)}`;
+  합치기.textContent = `${초성말} + 중성 ${자모이름붙이기(분해.중성)}${종성말} = ‘${정답}’`;
+
+  풀이.append(점판줄, 문장목록, 합치기);
+  return 풀이;
+}
+
+// 새 문제를 만들어 점자 칸과 보기 4개를 보여 주고, 이전 결과는 지운다.
+// 문제 제목의 aria-label을 새 문제에 맞게 바꾼다. 문제를 못 만들면 결과영역에 안내 글을 적는다.
+function 새문제보이기(요소) {
+  지금문제 = 문제만들기();
+  요소.결과영역.replaceChildren();
+  요소.다음문제버튼.hidden = true;
+
+  if (!지금문제) {
+    요소.문제칸목록.replaceChildren();
+    요소.보기목록.replaceChildren();
+    요소.문제안내.removeAttribute('aria-label');
+    요소.결과영역.textContent = '문제를 만들지 못했어요.';
+    return;
+  }
+
+  지금문제.답함 = false;
+  요소.문제안내.setAttribute('aria-label', 문제낭독글만들기(지금문제.칸목록));
+  요소.문제칸목록.replaceChildren(...지금문제.칸목록.map((칸, 번호) => 문제칸만들기(칸, 번호 + 1)));
+  요소.보기목록.replaceChildren(...지금문제.보기.map((글자, 번호) => 보기버튼만들기(글자, 번호 + 1, 요소)));
+}
+
+// 고른 글자가 정답인지 알려 주고, 풀이를 보여 준다. 정답·오답은 색이 아니라 글로도 적는다.
+// 버튼은 disabled 대신 aria-disabled로 잠가서 초점이 사라지지 않게 하고, 결과는 role="status"가 읽어 준다.
+function 답확인하기(고른글자, 요소) {
+  if (!지금문제 || 지금문제.답함) return;
+  지금문제.답함 = true;
+
+  const 정답 = 지금문제.정답;
+  const 맞음 = 고른글자 === 정답;
+
+  요소.보기목록.querySelectorAll('button').forEach(단추 => {
+    단추.setAttribute('aria-disabled', 'true');
+    단추.tabIndex = -1;     // 초점은 지금 누른 버튼에 그대로 두고, 다음 Tab은 '다음 문제'로 간다
+    let 표시글 = '';
+    if (단추.dataset.글자 === 정답) {
+      단추.classList.add('정답');
+      표시글 = '(정답)';
+    } else if (단추.dataset.글자 === 고른글자) {
+      단추.classList.add('오답');
+      표시글 = '(내가 고른 것)';
+    }
+    if (표시글) {
+      const 표시 = document.createElement('span');   // 글자 아래에 작게 적는다
+      표시.className = '보기표시';
+      표시.textContent = ` ${표시글}`;
+      단추.appendChild(표시);
+      단추.setAttribute('aria-label', `보기 ${단추.dataset.번호}번: ${단추.dataset.글자} ${표시글}`);
+    }
+  });
+
+  const 결과글 = document.createElement('p');
+  결과글.className = '결과글';
+  결과글.textContent = 맞음
+    ? `맞았어요! 정답은 ‘${정답}’. 왜 맞는지 점을 하나씩 볼까요?`
+    : `아쉬워요. 정답은 ‘${정답}’ (내가 고른 글자: ‘${고른글자}’). 점을 하나씩 볼까요?`;
+
+  요소.결과영역.replaceChildren(결과글, 풀이만들기(정답, 지금문제.칸목록));
+  요소.다음문제버튼.hidden = false;
+}
+</script>
+<script>
+  // 변환 버튼을 누르거나 입력칸에서 Enter를 누르면 점자를 그리고, 칸마다 자모 이름을 읽는다.
+  document.getElementById('변환폼').addEventListener('submit', (사건) => {
+    사건.preventDefault();
+    const 입력글 = document.getElementById('입력칸').value;
+    순서대로그리기(문자열점자칸목록(입력글), document.getElementById('점자목록'), document.getElementById('알림'), 자모이름읽기);
+  });
+
+  // '입력한 글 읽어주기' 버튼을 누르면 입력칸의 글을 한국어 음성으로 읽는다.
+  document.getElementById('읽기버튼').addEventListener('click', () => {
+    입력글읽기(document.getElementById('입력칸').value);
+  });
+
+  // 자모 이름 소리 읽기 켜기·끄기 칸. 음성 기능이 없는 브라우저에서는 이 칸과 읽기 버튼을 숨긴다.
+  document.getElementById('자모소리켜기').addEventListener('change', (사건) => {
+    자모소리설정(사건.target.checked);
+  });
+  document.getElementById('읽기버튼').hidden = !음성지원됨;
+  document.getElementById('자모소리줄').hidden = !음성지원됨;
+  document.getElementById('자모소리도움말').hidden = !음성지원됨;
+
+  // 위쪽 두 버튼으로 '점자 변환'과 '점자 퀴즈' 화면을 바꾼다. 바꿀 때 소리와 그리기를 멈춘다.
+  // 화면이 바뀐 걸 낭독기가 알리도록 새 화면의 제목으로 초점을 옮긴다. 퀴즈는 처음 열 때 첫 문제를 낸다.
+  const 퀴즈요소 = {
+    문제안내: document.getElementById('문제안내'),
+    문제칸목록: document.getElementById('문제칸목록'),
+    보기목록: document.getElementById('보기목록'),
+    결과영역: document.getElementById('결과영역'),
+    다음문제버튼: document.getElementById('다음문제버튼'),
+  };
+  function 모드바꾸기(퀴즈모드) {
+    clearTimeout(그리기타이머);
+    소리멈추기();
+    document.getElementById('변환화면').hidden = 퀴즈모드;
+    document.getElementById('퀴즈화면').hidden = !퀴즈모드;
+    document.getElementById('변환모드버튼').setAttribute('aria-pressed', String(!퀴즈모드));
+    document.getElementById('퀴즈모드버튼').setAttribute('aria-pressed', String(퀴즈모드));
+    if (퀴즈모드 && !지금문제) 새문제보이기(퀴즈요소);
+    document.getElementById(퀴즈모드 ? '문제안내' : '변환제목').focus();
+  }
+  document.getElementById('변환모드버튼').addEventListener('click', () => 모드바꾸기(false));
+  document.getElementById('퀴즈모드버튼').addEventListener('click', () => 모드바꾸기(true));
+  document.getElementById('다음문제버튼').addEventListener('click', () => {
+    새문제보이기(퀴즈요소);
+    document.getElementById('문제안내').focus();
+  });
+</script>
+</body>
+</html>

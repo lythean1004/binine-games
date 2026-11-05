@@ -1,0 +1,882 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>비밀 실험실 탈출</title>
+<style>
+  :root {
+    --bg: #070b14;
+    --panel: #0f1626;
+    --line: #22304a;
+    --text: #d6e2f0;
+    --dim: #7f91ab;
+    --glow: #3cf0c8;
+    --danger: #ff4d6d;
+    --purple: #b46cff;
+    color-scheme: dark;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; min-height: 100vh; background: radial-gradient(circle at 50% 0%, #10203a 0%, var(--bg) 60%);
+    color: var(--text); font-family: "Malgun Gothic", "Apple SD Gothic Neo", system-ui, sans-serif;
+    display: flex; justify-content: center; padding-block: 12px 24px;
+    padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px));
+  }
+  #app { width: 100%; max-width: 560px; }
+  #top { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; }
+  #roomName { font-weight: bold; color: var(--glow); text-shadow: 0 0 8px rgba(60,240,200,.5); white-space: nowrap; }
+  #gauge { flex: 1; height: 18px; background: #1a0f14; border: 1px solid #3a2030; border-radius: 9px; overflow: hidden; position: relative; }
+  #gaugeFill { height: 100%; width: 100%; background: linear-gradient(90deg, #2bd17e, #8cf06a); transition: background .5s; }
+  #timeText { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; font-size: 12px; font-weight: bold; color: #fff; text-shadow: 0 0 3px #000; }
+  #gauge.low { animation: blink .6s infinite; }
+  @keyframes blink { 50% { box-shadow: 0 0 12px var(--danger); } }
+  button {
+    font: inherit; color: var(--text); background: var(--panel); border: 1px solid var(--line);
+    border-radius: 8px; padding: 6px 10px; cursor: pointer;
+  }
+  button:hover:not(:disabled) { border-color: var(--glow); }
+  button:disabled { opacity: .4; cursor: default; }
+  #stage { position: relative; }
+  canvas { display: block; width: 100%; height: auto; border-radius: 10px; border: 1px solid var(--line); background: #05080f; image-rendering: auto; }
+  #msg { min-height: 44px; margin-top: 8px; padding: 8px 12px; background: var(--panel); border: 1px solid var(--line); border-radius: 8px; font-size: 14px; line-height: 1.5; }
+  #bagWrap { margin-top: 8px; }
+  #bagWrap .label { font-size: 12px; color: var(--dim); margin-bottom: 4px; }
+  #bag { display: grid; grid-template-columns: repeat(7, 1fr); gap: 6px; }
+  .slot { aspect-ratio: 1; background: #0b111e; border: 1px dashed var(--line); border-radius: 8px; display: flex; flex-direction: column; align-items: center; justify-content: center; font-size: 22px; padding: 2px; }
+  .slot.has { border-style: solid; cursor: pointer; }
+  .slot.has:hover { border-color: var(--glow); }
+  .slot small { font-size: 9px; color: var(--dim); text-align: center; line-height: 1.1; margin-top: 2px; }
+  #controls { display: flex; gap: 6px; margin-top: 8px; flex-wrap: wrap; font-size: 12px; color: var(--dim); align-items: center; }
+  .overlay { position: fixed; inset: 0; background: rgba(3,6,12,.82); display: none; align-items: center; justify-content: center; z-index: 10; padding: 16px; }
+  .overlay.show { display: flex; }
+  .card { background: var(--panel); border: 1px solid var(--line); border-radius: 14px; padding: 20px; max-width: 460px; width: 100%; max-height: 90vh; overflow: auto; box-shadow: 0 0 40px rgba(60,240,200,.12); }
+  .card h2 { margin: 0 0 10px; color: var(--glow); }
+  .card p { line-height: 1.6; margin: 8px 0; }
+  .row { display: flex; gap: 8px; flex-wrap: wrap; justify-content: center; margin-top: 12px; }
+  .big { padding: 10px 18px; font-size: 16px; border-color: var(--glow); }
+  .slots4 { display: flex; gap: 8px; justify-content: center; margin: 12px 0; }
+  .slots4 div { width: 46px; height: 46px; border-radius: 50%; border: 2px dashed var(--line); }
+  .swatch { width: 40px; height: 40px; border-radius: 50%; border: 2px solid rgba(255,255,255,.2); cursor: pointer; }
+  .keys { display: grid; grid-template-columns: repeat(3, 60px); gap: 6px; justify-content: center; margin-top: 10px; }
+  .keys button { height: 46px; font-size: 18px; }
+  .codebox { display: flex; gap: 8px; justify-content: center; margin: 10px 0; }
+  .codebox div { width: 42px; height: 52px; border: 1px solid var(--glow); border-radius: 6px; display: flex; align-items: center; justify-content: center; font-size: 26px; font-family: monospace; color: var(--glow); background: #061410; }
+  .shake { animation: shake .35s; }
+  @keyframes shake { 25% { transform: translateX(-8px); } 75% { transform: translateX(8px); } }
+  .ptable { display: grid; grid-template-columns: repeat(8, 1fr); gap: 3px; margin-top: 10px; }
+  .ptable div { background: #13213a; border: 1px solid #2a3d60; border-radius: 4px; padding: 3px 0; text-align: center; font-size: 10px; }
+  .ptable b { display: block; font-size: 15px; color: #fff; }
+  .ptable .e { background: none; border: none; }
+  .diary { background: #e9dcc0; color: #3a2a18; border-radius: 8px; padding: 14px; font-family: "Gungsuh", serif; line-height: 1.8; }
+  .terminal { background: #021008; border: 1px solid #1f6b48; border-radius: 8px; padding: 12px; font-family: monospace; color: #5dffa8; }
+  .hint { background: #1c1a0c; border: 1px solid #6a5a1a; border-radius: 8px; padding: 12px; }
+  .stat { display: flex; justify-content: space-between; border-bottom: 1px solid var(--line); padding: 6px 0; }
+</style>
+</head>
+<body>
+<div id="app">
+  <div id="top">
+    <span id="roomName">🧪 약품 보관실</span>
+    <div id="gauge"><div id="gaugeFill"></div><div id="timeText">15:00</div></div>
+    <button id="hintBtn" title="힌트 (방마다 1번)">💡</button>
+    <button id="soundBtn" title="소리">🔊</button>
+    <button id="pauseBtn" title="일시정지 (P)">⏸</button>
+  </div>
+  <div id="stage"><canvas id="cv"></canvas></div>
+  <div id="controls">
+    <button id="rotL">⟲ &lt;</button>
+    <button id="rotR">&gt; ⟳</button>
+    <span>WASD 이동 · 물건 클릭으로 조사 · &lt; &gt; 방 돌리기 · P 일시정지</span>
+  </div>
+  <div id="msg"></div>
+  <div id="bagWrap">
+    <div class="label">🎒 가방 (클릭해서 사용·읽기)</div>
+    <div id="bag"></div>
+  </div>
+</div>
+
+<div class="overlay" id="modal"><div class="card" id="modalCard"></div></div>
+
+<script>
+// ===== 기본 설정 =====
+const N = 10, T = 48, OY = 50, WALL_H = 0.9;
+const MAX_TIME = 15 * 60, ANTIDOTE_TIME = 2 * 60;
+const cv = document.getElementById('cv'), ctx = cv.getContext('2d');
+const CW = N * T, CH = N * T + OY;
+const DPR = Math.min(window.devicePixelRatio || 1, 2);
+cv.width = CW * DPR; cv.height = CH * DPR;
+ctx.scale(DPR, DPR);
+
+const $ = id => document.getElementById(id);
+
+// ===== 소리 =====
+let actx = null, soundOn = true;
+function beep(freq, dur = 0.12, type = 'sine', vol = 0.08, slide = 0) {
+  if (!soundOn) return;
+  try {
+    actx = actx || new (window.AudioContext || window.webkitAudioContext)();
+    const o = actx.createOscillator(), g = actx.createGain();
+    o.type = type; o.frequency.value = freq;
+    if (slide) o.frequency.linearRampToValueAtTime(freq + slide, actx.currentTime + dur);
+    g.gain.value = vol; g.gain.exponentialRampToValueAtTime(0.0001, actx.currentTime + dur);
+    o.connect(g); g.connect(actx.destination); o.start(); o.stop(actx.currentTime + dur);
+  } catch (e) {}
+}
+const sfx = {
+  pick: () => { beep(660, .08); setTimeout(() => beep(990, .1), 70); },
+  ok: () => { beep(523, .1); setTimeout(() => beep(659, .1), 90); setTimeout(() => beep(784, .18), 180); },
+  bad: () => beep(140, .25, 'sawtooth', .06),
+  rot: () => beep(300, .12, 'triangle', .05, 120),
+  door: () => beep(200, .4, 'square', .04, -120),
+  drink: () => { beep(400, .15, 'sine', .08, 300); },
+  heart: () => { beep(60, .1, 'sine', .15); setTimeout(() => beep(55, .1, 'sine', .12), 160); },
+  gas: () => beep(900, .35, 'sawtooth', .03, -700),
+};
+
+// ===== 상태 =====
+let S;
+const ITEMS = {
+  memo: { icon: '📝', name: '박사님의 메모', use: () => readText('📝 박사님의 메모', '<p style="font-size:18px">"보관실 약품병은 반드시, 비가 그친 뒤 하늘에 걸리는 <b>다리의 순서</b>대로 정리할 것!"</p><p style="text-align:right">— 박사</p>') },
+  card: { icon: '💳', name: '카드키', use: () => say('보관실 문을 여는 카드키다. 문을 클릭하면 사용된다.') },
+  scaleNote: { icon: '⚖️', name: '저울 숫자', use: () => readText('⚖️ 저울 숫자', '<p>저울이 균형을 이루자 바늘이 가리킨 숫자:</p><p style="font-size:36px;text-align:center;color:var(--glow)">3 7</p>') },
+  antidote: { icon: '💉', name: '해독제', use: drinkAntidote },
+  slide: { icon: '🧫', name: '보라 용액 슬라이드', use: () => say('보라 용액을 한 방울 떨어뜨린 유리 슬라이드다. 현미경으로 볼 수 있을 것 같다.') },
+  micNote: { icon: '🔬', name: '현미경 메모', use: () => readText('🔬 현미경 메모', '<p>현미경 속에서 본 글자를 그대로 따라 그렸다:</p><div style="display:flex;justify-content:center"><div style="display:flex;gap:24px;transform:rotate(180deg);font-size:40px;font-family:serif;color:var(--purple)"><span>F</span><span>B</span></div></div>') },
+  diary: { icon: '📔', name: '박사님의 일기장', use: showDiary },
+};
+
+function newGame() {
+  S = {
+    mode: 'play', room: 0, r: 0, px: 2.5, py: 6.5, time: MAX_TIME,
+    bag: [], flags: {}, hints: [null, null, null], antidotes: 0, hintsUsed: 0,
+    fade: 1, rooms: [room1(), room2(), room3()], heartT: 0,
+  };
+  enterRoom(0, true);
+  renderBag();
+}
+
+// ===== 방 만들기 =====
+function walls(o, skip = []) {
+  for (let i = 0; i < N; i++) for (let j = 0; j < N; j++) {
+    if (i > 0 && i < N - 1 && j > 0 && j < N - 1) continue;
+    if (skip.some(([x, y]) => x === i && y === j)) continue;
+    o.push({ kind: 'tall', look: 'wall', x: i, y: j, w: 1, h: 1, H: WALL_H, solid: true, name: '벽', use: () => say('차갑고 단단한 실험실 벽이다.') });
+  }
+}
+const tall = (look, x, y, w, h, H, name, use) => ({ kind: 'tall', look, x, y, w, h, H, solid: true, name, use });
+const flat = (look, x, y, name, use, extra = {}) => ({ kind: 'flat', look, x, y, w: 1, h: 1, name, use, ...extra });
+const decal = (look, x, y, w, h, face, name, use) => ({ kind: 'decal', look, x, y, w, h, face, name, use });
+const door = (x, y, name, use, extra = {}) => ({ kind: 'tall', look: 'door', x, y, w: 1, h: 1, H: WALL_H, solid: true, name, use, ...extra });
+
+function pickup(o, itemId, text) {
+  removeObj(o); addItem(itemId); sfx.pick(); say(text);
+}
+
+function room1() {
+  const o = [];
+  walls(o, [[9, 5]]);
+  o.push(door(9, 5, '보관실 문', function () {
+    if (S.flags.r1door) { goRoom(1); return; }
+    if (has('card')) { removeItem('card'); S.flags.r1door = true; sfx.door(); say('카드키를 꽂자 "삐빅!" 문이 열렸다. 한 번 더 클릭하면 다음 방으로 간다.'); }
+    else { sfx.bad(); say('문이 잠겨 있다. 카드키를 꽂는 곳이 있다.'); }
+  }, { openFlag: 'r1door' }));
+  o.push(tall('cabinet', 3, 2, 2, 1, 1.0, '커다란 약품장', () => say('커다란 약품장이다. 무거워서 움직일 수 없다. 뒤쪽은 이 방향에서는 보이지 않는다…')));
+  o.push(tall('lockshelf', 6, 1, 2, 1, 0.85, '자물쇠 선반', useLockShelf));
+  o.push(tall('table', 1, 3, 1, 2, 0.45, '작업대', () => say('낡은 작업대다. 박사님이 급하게 쓴 듯한 실험 기록이 흩어져 있다. 쓸 만한 건 없다.')));
+  o.push(flat('vial', 3, 7, '깨진 시험관', () => say('내가 깨트린 시험관이다… 초록색 독가스가 계속 피어오르고 있다. 서둘러야 한다!')));
+  o.push(flat('memo', 4, 6, '바닥의 메모', function () { pickup(this, 'memo', '바닥에 떨어진 박사님의 메모를 주웠다. (가방에서 읽을 수 있다)'); }));
+  o.push(flat('bottle', 7, 4, '빨간 약품병', () => say('🔴 <b>빨간</b> 약품병이다. 라벨에 <b>5g</b>이라고 적혀 있다.'), { color: '#ff3b4e' }));
+  o.push(flat('bottle', 6, 6, '노란 약품병', () => say('🟡 <b>노란</b> 약품병이다. 라벨에 <b>11g</b>이라고 적혀 있다.'), { color: '#ffd23b' }));
+  o.push(flat('bottle', 8, 3, '파란 약품병', () => say('🔵 <b>파란</b> 약품병이다. 라벨에 <b>8g</b>이라고 적혀 있다.'), { color: '#3b8bff' }));
+  o.push(flat('bottle', 3, 1, '초록 약품병', () => say('🟢 약품장 뒤에 숨어 있던 <b>초록</b> 약품병이다! 라벨에 <b>13g</b>이라고 적혀 있다.'), { color: '#3bff6e' }));
+  o.push(flat('bottle', 8, 8, '주황 약품병', () => say('🟠 구석에 숨어 있던 <b>주황</b> 약품병이다! 라벨에 <b>6g</b>이라고 적혀 있다.'), { color: '#ff8a2b' }));
+  o.push(flat('antidote', 4, 1, '해독제', function () { pickup(this, 'antidote', '💉 해독제를 찾았다! 가방에서 클릭하면 마실 수 있다.'); }));
+  return { name: '🧪 약품 보관실', start: [2.5, 6.5], tint: '#0d1f22', objs: o,
+    intro: '쨍그랑! 박사님의 심부름으로 도구를 가지러 왔다가 독이 든 시험관을 깨트렸다. 문은 잠겼고 독가스가 퍼지고 있다… 탈출해야 한다!' };
+}
+
+function room2() {
+  const o = [];
+  walls(o, [[0, 5], [9, 5]]);
+  o.push(door(0, 5, '들어온 문', () => say('들어온 문은 등 뒤에서 굳게 잠겨 버렸다.'), { openFlag: 'never' }));
+  o.push(door(9, 5, '번호 자물쇠 문', function () {
+    if (S.flags.r2door) { goRoom(2); return; }
+    keypad('🔢 문 자물쇠', '두 자리 숫자를 입력하세요.', 2, '95', () => { S.flags.r2door = true; sfx.door(); say('"딸깍!" 문이 열렸다. 한 번 더 클릭하면 다음 방으로 간다.'); });
+  }, { openFlag: 'r2door' }));
+  o.push(decal('board', 4, 0, 2, 1, [0, 1], '칠판', () => readText('칠판', '<p>박사님의 글씨로 적혀 있다.</p><p style="font-size:18px">"오늘의 실험 — 비커 용액을 3번 부어 이 색을 만들 것"</p><div style="display:flex;justify-content:center"><div style="width:70px;height:70px;border-radius:50%;background:#4b2fb0;box-shadow:0 0 20px #4b2fb0"></div></div><p style="color:var(--dim);text-align:center">비슷한 색이 많으니 잘 비교할 것!</p>')));
+  o.push(decal('poster', 4, 9, 3, 1, [0, -1], '주기율표 포스터', showPeriodic));
+  o.push(tall('bench', 4, 4, 2, 2, 0.5, '실험대', useMixBench));
+  o.push(tall('microscope', 7, 2, 1, 1, 0.75, '현미경', useMicroscope));
+  o.push(tall('fridge', 2, 7, 1, 1, 1.0, '약품 냉장고', () => say('윙윙 소리를 내는 약품 냉장고다. 뒤쪽 벽 사이에 틈이 있는 것 같다…')));
+  o.push(tall('table', 1, 1, 2, 1, 0.45, '선반', () => say('빈 비커들이 놓여 있다.')));
+  o.push(flat('antidote', 2, 8, '해독제', function () { pickup(this, 'antidote', '💉 냉장고 뒤에서 해독제를 찾았다!'); }));
+  return { name: '🔬 실험실', start: [1.5, 5.5], tint: '#160f24', objs: o,
+    intro: '두 번째 방, 실험실이다. 보글보글 끓는 비커와 현미경이 보인다.' };
+}
+
+function room3() {
+  const o = [];
+  walls(o, [[0, 5], [9, 3]]);
+  o.push(door(0, 5, '들어온 문', () => say('들어온 문은 다시 잠겨 버렸다.'), { openFlag: 'never' }));
+  o.push(door(9, 3, '출구', function () {
+    if (S.flags.exitOpen) { win(); return; }
+    sfx.bad(); say('출구다! 하지만 컴퓨터로 잠금을 풀어야 열리는 것 같다.');
+  }, { openFlag: 'exitOpen', exit: true }));
+  o.push(tall('bookshelf', 5, 2, 2, 1, 1.0, '책장', () => say('어려운 과학책이 빽빽하다. 책장 뒤로 뭔가 떨어진 것 같은데, 이 방향에서는 안 보인다.')));
+  o.push(tall('desk', 6, 6, 2, 1, 0.6, '컴퓨터', useComputer));
+  o.push(tall('table', 1, 1, 2, 1, 0.45, '소파 탁자', () => say('식은 커피잔이 놓여 있다. 박사님은 밤새 연구한 모양이다.')));
+  o.push(decal('whiteboard', 9, 6, 1, 2, [-1, 0], '화이트보드', () => readText('화이트보드', '<p style="font-size:17px">해독제 연구<br>· 재료 1 ✔<br>· 재료 2 ✔<br>· 마지막 재료: <b style="color:var(--purple)">보라 용액</b> ???</p>')));
+  o.push(flat('diary', 5, 1, '일기장', function () { pickup(this, 'diary', '📔 책장 뒤에서 박사님의 일기장을 찾았다! (가방에서 읽을 수 있다)'); S.flags.diary = true; }));
+  return { name: '🖥️ 박사님의 연구실', start: [1.5, 5.5], tint: '#0b1428', objs: o,
+    intro: '마지막 방, 박사님의 연구실이다. 저 앞에 출구가 보인다!' };
+}
+
+function curRoom() { return S.rooms[S.room]; }
+function removeObj(o) { const a = curRoom().objs; a.splice(a.indexOf(o), 1); }
+
+function enterRoom(i, first) {
+  S.room = i; S.r = 0; S.fade = 1;
+  const R = curRoom();
+  [S.px, S.py] = R.start;
+  $('roomName').textContent = R.name;
+  updateHintBtn();
+  say(R.intro);
+  if (!first) sfx.door();
+}
+function goRoom(i) { enterRoom(i); }
+
+// ===== 가방 =====
+function has(id) { return S.bag.includes(id); }
+function addItem(id) { S.bag.push(id); renderBag(); }
+function removeItem(id) { const k = S.bag.indexOf(id); if (k >= 0) S.bag.splice(k, 1); renderBag(); }
+function renderBag() {
+  const b = $('bag'); b.innerHTML = '';
+  for (let i = 0; i < 7; i++) {
+    const d = document.createElement('div'); d.className = 'slot';
+    const id = S && S.bag[i];
+    if (id) {
+      d.classList.add('has'); d.innerHTML = ITEMS[id].icon + '<small>' + ITEMS[id].name + '</small>';
+      d.onclick = () => { if (S.mode === 'play') ITEMS[id].use(); };
+    }
+    b.appendChild(d);
+  }
+}
+function drinkAntidote() {
+  removeItem('antidote');
+  S.time = Math.min(MAX_TIME, S.time + ANTIDOTE_TIME);
+  S.antidotes++;
+  sfx.drink();
+  say('💉 해독제를 마셨다! 몸이 한결 가벼워졌다. (+2분)');
+}
+
+// ===== 메시지 / 모달 =====
+function say(html) { $('msg').innerHTML = html; }
+function openModal(html, onClose) {
+  $('modalCard').innerHTML = html;
+  $('modal').classList.add('show');
+  S.modalClose = onClose || null;
+  S.modalKey = null;
+}
+function closeModal() {
+  $('modal').classList.remove('show');
+  S.modalKey = null;
+  const f = S.modalClose; S.modalClose = null; if (f) f();
+}
+function readText(title, body) {
+  openModal(`<h2>${title}</h2>${body}<div class="row"><button class="big" onclick="closeModal()">닫기</button></div>`);
+}
+function penalty(sec, text) {
+  S.time = Math.max(0, S.time - sec);
+  sfx.gas(); S.puff = 1;
+  say(text + ` <span style="color:var(--danger)">(-${sec}초)</span>`);
+}
+
+// ===== 1번 방 퍼즐 =====
+const COLORS = [['빨강', '#ff3b4e'], ['주황', '#ff8a2b'], ['노랑', '#ffd23b'], ['초록', '#3bff6e'], ['파랑', '#3b8bff'], ['보라', '#9b4dff']];
+function useLockShelf() {
+  if (S.flags.scaleDone) { say('저울이 있던 선반이다. 이제 볼일은 없다.'); return; }
+  if (S.flags.lockOpen) { showScale(); return; }
+  let seq = [];
+  const draw = () => {
+    openModal(`<h2>🔒 색깔 자물쇠</h2>
+      <p>자물쇠에 색깔 버튼 6개와 빈칸 5개가 있다. 약품병의 색을 올바른 순서로 누르면 열릴 것 같다.</p>
+      <div class="slots4">${[0, 1, 2, 3, 4].map(i => `<div style="${seq[i] ? 'background:' + seq[i][1] + ';border:2px solid #fff3' : ''}"></div>`).join('')}</div>
+      <div class="row">${COLORS.map((c, i) => `<div class="swatch" title="${c[0]}" style="background:${c[1]}" onclick="lockPress(${i})"></div>`).join('')}</div>
+      <div class="row"><button onclick="lockClear()">지우기</button><button class="big" onclick="lockCheck()">열기</button><button onclick="closeModal()">닫기</button></div>`);
+  };
+  window.lockPress = i => { if (seq.length < 5) { seq.push(COLORS[i]); beep(400 + i * 80, .06); draw(); } };
+  window.lockClear = () => { seq = []; draw(); };
+  window.lockCheck = () => {
+    if (seq.map(c => c[0]).join() === '빨강,주황,노랑,초록,파랑') {
+      S.flags.lockOpen = true; sfx.ok(); closeModal();
+      say('철컥! 선반 자물쇠가 열렸다. 안에 <b>저울</b>이 들어 있다. 다시 클릭해서 살펴보자.');
+    } else {
+      $('modalCard').classList.remove('shake'); void $('modalCard').offsetWidth; $('modalCard').classList.add('shake');
+      sfx.bad(); seq = []; setTimeout(draw, 350);
+    }
+  };
+  draw();
+}
+
+const WEIGHTS = [['#ff3b4e', 5, '빨간 병'], ['#3b8bff', 8, '파란 병'], ['#ffd23b', 11, '노란 병'], ['#3bff6e', 13, '초록 병'], ['#ff8a2b', 6, '주황 병']];
+function showScale() {
+  let on = new Set();
+  const draw = () => {
+    const left = 24, right = [...on].reduce((s, i) => s + WEIGHTS[i][1], 0);
+    const a = Math.max(-16, Math.min(16, (right - left) * 1.5)) * Math.PI / 180;
+    const cx = 150, cy = 46, L = 105;
+    const lx = cx - L * Math.cos(a), ly = cy - L * Math.sin(a), rx = cx + L * Math.cos(a), ry = cy + L * Math.sin(a);
+    const balanced = right === left && on.size === 3;
+    const svg = `<svg viewBox="0 0 300 175" width="100%" style="max-width:320px;display:block;margin:auto">
+      <rect x="140" y="${cy}" width="20" height="110" fill="#2a3a55"/><rect x="100" y="155" width="100" height="12" rx="4" fill="#2a3a55"/>
+      <line x1="${lx}" y1="${ly}" x2="${rx}" y2="${ry}" stroke="#9fb3cf" stroke-width="6" stroke-linecap="round"/>
+      <circle cx="${cx}" cy="${cy}" r="7" fill="${balanced ? '#3cf0c8' : '#9fb3cf'}"/>
+      <line x1="${lx}" y1="${ly}" x2="${lx}" y2="${ly + 50}" stroke="#6b7f9e"/><line x1="${rx}" y1="${ry}" x2="${rx}" y2="${ry + 50}" stroke="#6b7f9e"/>
+      <ellipse cx="${lx}" cy="${ly + 52}" rx="40" ry="8" fill="#55688a"/><ellipse cx="${rx}" cy="${ry + 52}" rx="40" ry="8" fill="#55688a"/>
+      <rect x="${lx - 16}" y="${ly + 26}" width="32" height="22" rx="3" fill="#8592a8"/><text x="${lx}" y="${ly + 42}" text-anchor="middle" font-size="12" fill="#111" font-weight="bold">24g</text>
+      ${[...on].map((i, k) => `<rect x="${rx - 30 + k * 14}" y="${ry + 30}" width="10" height="18" rx="3" fill="${WEIGHTS[i][0]}"/>`).join('')}
+    </svg>`;
+    openModal(`<h2>⚖️ 선반 속 저울</h2>
+      <p>왼쪽 접시에는 <b>24g</b> 추가 놓여 있다. 오른쪽 접시에 약품병을 <b>딱 3개</b> 올려 균형을 맞추면 뭔가 일어날 것 같다. 병마다 무게가 다른데, 무게 라벨은 방 안의 약품병에 붙어 있다.</p>
+      ${svg}
+      <p style="text-align:center">오른쪽 접시: 약품병 ${on.size} / 3개</p>
+      <div class="row">${WEIGHTS.map((w, i) => `<button onclick="scaleToggle(${i})" style="border-color:${on.has(i) ? w[0] : 'var(--line)'}"><span style="color:${w[0]}">●</span> ${w[2]} ${on.has(i) ? '✓' : ''}</button>`).join('')}</div>
+      <div class="row"><button onclick="closeModal()">닫기</button></div>`);
+    if (balanced) {
+      setTimeout(() => {
+        S.flags.scaleDone = true; sfx.ok();
+        addItem('scaleNote'); addItem('card');
+        openModal(`<h2>⚖️ 균형!</h2><p>저울이 딱 균형을 이루자 눈금 바늘이 멈추며 숫자를 가리켰다.</p>
+          <p style="font-size:44px;text-align:center;color:var(--glow);text-shadow:0 0 12px var(--glow)">3 7</p>
+          <p>"딸깍" 하고 저울 아래 작은 서랍이 열렸다. 안에 <b>💳 카드키</b>가 있다!</p>
+          <p style="color:var(--dim)">(숫자와 카드키를 가방에 넣었다)</p>
+          <div class="row"><button class="big" onclick="closeModal()">좋아!</button></div>`);
+        say('저울의 숫자 <b>37</b>을 기억하자. 카드키로 문을 열 수 있을 것 같다.');
+      }, 500);
+    }
+  };
+  window.scaleToggle = i => { if (on.has(i)) on.delete(i); else if (on.size < 3) on.add(i); else return; beep(300 + i * 60, .05); draw(); };
+  draw();
+}
+
+// ===== 2번 방 퍼즐 =====
+// 빨강·노랑·파랑을 몇 번씩 부었는지로 색이 정해짐 (키: 빨노파 횟수)
+const MIX = {
+  '100': ['빨강', '#ff3b4e'], '010': ['노랑', '#ffd23b'], '001': ['파랑', '#3b8bff'],
+  '200': ['빨강', '#ff3b4e'], '020': ['노랑', '#ffd23b'], '002': ['파랑', '#3b8bff'],
+  '300': ['빨강', '#ff3b4e'], '030': ['노랑', '#ffd23b'], '003': ['파랑', '#3b8bff'],
+  '110': ['주황', '#ff8a2b'], '101': ['보라', '#9b4dff'], '011': ['초록', '#3bff6e'],
+  '210': ['다홍', '#ff5a2b'], '120': ['귤색', '#ffad2b'], '201': ['자주', '#c2307a'],
+  '102': ['남보라', '#4b2fb0'], '021': ['연두', '#9be03b'], '012': ['청록', '#1fa88a'], '111': ['흙색', '#6b4423'],
+};
+const mixOf = list => MIX[['빨강', '노랑', '파랑'].map(c => list.filter(x => x === c).length).join('')];
+const CC = Object.fromEntries(COLORS);
+function useMixBench() {
+  if (S.flags.mixDone) { say('보라 용액을 만들었던 실험대다.'); return; }
+  let poured = [];
+  const draw = () => {
+    const flaskColor = poured.length ? mixOf(poured)[1] : 'transparent';
+    const beaker = (name, i) => `<button onclick="mixPour('${name}')" style="display:flex;flex-direction:column;align-items:center;gap:4px">
+      <svg width="44" height="56"><path d="M8 4 L8 46 Q8 52 14 52 L30 52 Q36 52 36 46 L36 4" fill="none" stroke="#9fb3cf" stroke-width="2"/><rect x="10" y="22" width="24" height="28" rx="3" fill="${CC[name]}" opacity=".85"/></svg>${name}</button>`;
+    openModal(`<h2>⚗️ 실험대</h2>
+      <p>빨강·노랑·파랑 용액 비커가 있다. 플라스크에 <b>정확히 3번</b> 부어 섞을 수 있다.</p>
+      <div class="row">${['빨강', '노랑', '파랑'].map(beaker).join('')}</div>
+      <svg width="120" height="120" style="display:block;margin:12px auto">
+        <path d="M48 8 L48 44 L18 104 Q14 114 26 114 L94 114 Q106 114 102 104 L72 44 L72 8" fill="none" stroke="#c9d6e8" stroke-width="3"/>
+        ${poured.length ? `<path d="M${['', '34 82', '28 66', '22 52'][poured.length]} L${['', '86 82', '92 66', '98 52'][poured.length]} L102 104 Q106 114 94 114 L26 114 Q14 114 18 104 Z" fill="${flaskColor}" opacity=".9"/>` : ''}
+      </svg>
+      <p style="text-align:center">플라스크: ${poured.join(' + ') || '비어 있음'}</p>
+      <div class="row"><button onclick="mixEmpty()">비우기</button><button class="big" onclick="mixDo()" ${poured.length < 3 ? 'disabled' : ''}>섞기</button><button onclick="closeModal()">닫기</button></div>`);
+  };
+  window.mixPour = n => { if (poured.length < 3) { poured.push(n); beep(500, .1, 'sine', .06, -200); draw(); } };
+  window.mixEmpty = () => { poured = []; draw(); };
+  window.mixDo = () => {
+    const res = mixOf(poured)[0];
+    if (res === '남보라') {
+      S.flags.mixDone = true; sfx.ok(); addItem('slide');
+      openModal(`<h2>✨ 성공!</h2><p>플라스크가 칠판과 똑같은 <b style="color:var(--purple)">진한 남보라색</b>으로 빛난다! 한 방울을 유리 슬라이드에 떨어뜨렸다.</p><p style="color:var(--dim)">(🧫 보라 용액 슬라이드를 가방에 넣었다)</p><div class="row"><button class="big" onclick="closeModal()">좋아!</button></div>`);
+      say('보라 용액 슬라이드를 얻었다. 현미경으로 들여다보자!');
+    } else {
+      closeModal();
+      penalty(40, `치이익! ${res} 용액에서 독한 연기가 솟아올랐다. 칠판의 색과 다르다…`);
+    }
+  };
+  draw();
+}
+
+function useMicroscope() {
+  if (!has('slide') && !S.flags.micSeen) { say('현미경이다. 올려 볼 슬라이드가 없어서 아무것도 보이지 않는다.'); return; }
+  if (!S.flags.micSeen) { S.flags.micSeen = true; removeItem('slide'); addItem('micNote'); sfx.ok(); }
+  openModal(`<h2>🔬 현미경 속</h2>
+    <div style="width:220px;height:220px;margin:10px auto;border-radius:50%;background:radial-gradient(circle,#2a0f44 0%,#12061f 70%,#000 100%);border:6px solid #333;display:flex;align-items:center;justify-content:center;gap:28px;box-shadow:inset 0 0 30px #000">
+      <div style="display:flex;gap:28px;transform:rotate(180deg)"><span style="font-size:64px;font-family:serif;color:#e0b3ff;text-shadow:0 0 14px #b46cff">F</span><span style="font-size:64px;font-family:serif;color:#e0b3ff;text-shadow:0 0 14px #b46cff">B</span></div>
+    </div>
+    <p>남보라 용액 속 결정이 글자 모양을 하고 있다. 그런데 글자들이 어딘가 이상하게 생겼다…?</p>
+    <p style="color:var(--dim)">(🔬 현미경 메모를 가방에 넣었다)</p>
+    <div class="row"><button class="big" onclick="closeModal()">닫기</button></div>`);
+  say('현미경 속 글자가 이상하게 생겼다. 가방의 현미경 메모로 다시 볼 수 있다.');
+}
+
+const ELEMENTS = [[1, 'H', '수소'], [2, 'He', '헬륨'], [3, 'Li', '리튬'], [4, 'Be', '베릴륨'], [5, 'B', '붕소'], [6, 'C', '탄소'], [7, 'N', '질소'], [8, 'O', '산소'], [9, 'F', '플루오린'], [10, 'Ne', '네온'], [11, 'Na', '나트륨'], [12, 'Mg', '마그네슘'], [13, 'Al', '알루미늄'], [14, 'Si', '규소'], [15, 'P', '인'], [16, 'S', '황'], [17, 'Cl', '염소'], [18, 'Ar', '아르곤'], [19, 'K', '칼륨'], [20, 'Ca', '칼슘']];
+function showPeriodic() {
+  const cell = e => `<div><span style="color:var(--dim)">${e[0]}</span><b>${e[1]}</b>${e[2]}</div>`;
+  const E = ELEMENTS, gap = n => '<div class="e"></div>'.repeat(n);
+  const html = cell(E[0]) + gap(6) + cell(E[1]) + E.slice(2, 10).map(cell).join('') + E.slice(10, 18).map(cell).join('') + cell(E[18]) + cell(E[19]) + gap(6);
+  readText('🧪 주기율표 포스터', `<p>원소 기호와 <b>원자 번호</b>가 적혀 있다.</p><div class="ptable">${html}</div>`);
+}
+
+// ===== 3번 방 =====
+function useComputer() {
+  if (S.flags.exitOpen) { say('컴퓨터 화면에 "출구 잠금 해제됨"이라고 떠 있다.'); return; }
+  keypad('🖥️ 박사님의 컴퓨터', '<div class="terminal">LAB-OS v2.6<br>&gt; 출구 잠금 장치<br>&gt; 비밀번호 4자리를 입력하시오_</div>', 4, '3795', () => {
+    S.flags.exitOpen = true; sfx.door();
+    say('🟢 "출구 잠금 해제!" 오른쪽 출구로 달려가자!');
+  });
+}
+function showDiary() {
+  readText('📔 박사님의 일기장', `<div class="diary">
+    ○월 ○일<br>나는 실험실의 독가스를 없애는 <b>해독제</b>를 연구하고 있다. 미리 만든 해독제 두 병은 실험실 곳곳에 숨겨 두었다.<br><br>
+    ○월 ○일<br>해독제의 마지막 재료는 <b>빨강 한 번, 파랑 두 번을 섞은 진한 남보라 용액</b>이다. 하지만 아직 완성하지 못했다…<br><br>
+    ○월 ○일<br>혹시 누군가 갇히면 잊지 말 것.<br><b>컴퓨터의 문은, 무거운 것이 먼저 들어가고 작은 알갱이가 뒤따를 때 열린다.</b></div>`);
+}
+
+// ===== 숫자 키패드 =====
+function keypad(title, desc, len, answer, onOk) {
+  let val = '';
+  const draw = () => {
+    openModal(`<h2>${title}</h2>${desc.startsWith('<') ? desc : '<p>' + desc + '</p>'}
+      <div class="codebox">${Array.from({ length: len }, (_, i) => `<div>${val[i] || ''}</div>`).join('')}</div>
+      <div class="keys">${[1, 2, 3, 4, 5, 6, 7, 8, 9].map(n => `<button onclick="kpPress('${n}')">${n}</button>`).join('')}
+        <button onclick="kpBack()">←</button><button onclick="kpPress('0')">0</button><button onclick="kpOk()" style="border-color:var(--glow)">✓</button></div>
+      <div class="row"><button onclick="closeModal()">닫기</button></div>`);
+    S.modalKey = k => { if (/^[0-9]$/.test(k)) kpPress(k); else if (k === 'Backspace') kpBack(); else if (k === 'Enter') kpOk(); };
+  };
+  window.kpPress = d => { if (val.length < len) { val += d; beep(700, .05); draw(); } };
+  window.kpBack = () => { val = val.slice(0, -1); draw(); };
+  window.kpOk = () => {
+    if (val.length < len) return;
+    if (val === answer) { closeModal(); sfx.ok(); onOk(); }
+    else {
+      $('modalCard').classList.remove('shake'); void $('modalCard').offsetWidth; $('modalCard').classList.add('shake');
+      sfx.bad(); val = '';
+      S.time = Math.max(0, S.time - 20); S.puff = 1;
+      say('삐빅! 틀린 번호다. 경고 장치에서 가스가 뿜어져 나왔다. <span style="color:var(--danger)">(-20초)</span>');
+      setTimeout(draw, 350);
+    }
+  };
+  draw();
+}
+
+// ===== 힌트 =====
+function hintText() {
+  const f = S.flags;
+  if (S.room === 0) {
+    if (!f.lockOpen) return '비가 그친 뒤 하늘에 걸리는 다리는 <b>무지개</b>야. 방 안 약품병 <b>5개</b>의 색을 모두 찾아야 해. 가구 뒤나 벽 구석에 숨은 병은 <b>&lt; &gt; 로 방을 돌려야</b> 보여!';
+    if (!f.scaleDone) return '방 안의 약품병을 클릭하면 라벨에 <b>무게</b>가 적혀 있어. 세 병의 무게 합이 <b>24g</b>이 되게 골라 봐.';
+    return '카드키를 얻었어! 오른쪽 벽의 문을 클릭해서 다음 방으로 가자.';
+  }
+  if (S.room === 1) {
+    if (!f.mixDone) return '칠판의 색은 아주 진한 <b>남보라</b>야. 보라는 빨강 + 파랑이지? 파란 느낌이 더 강하려면 어느 쪽을 더 넣어야 할까?';
+    if (!f.micSeen) return '보라 용액 슬라이드를 얻었어. <b>현미경</b>을 클릭해서 들여다보자.';
+    if (!f.r2door) return '현미경은 상이 <b>위아래·좌우 모두 뒤집혀</b> 보여. 글자를 통째로 뒤집어서 읽으면 <b>원소 기호</b>가 돼. 주기율표 포스터는 아래쪽 벽에 있으니 방을 두 번 돌려 봐!';
+    return '문이 열렸어. 다음 방으로!';
+  }
+  if (!f.diary) return '박사님의 일기장이 <b>책장 뒤</b>에 떨어져 있어. &lt; &gt; 로 방을 옆으로 돌려 봐.';
+  if (!f.exitOpen) return '"무거운 것"은 <b>저울</b>, "작은 알갱이"는 <b>원소</b>야. 비밀번호 = 저울의 숫자(앞 2자리) + 원소의 숫자(뒤 2자리).';
+  return '출구가 열렸어! 오른쪽 출구를 클릭해!';
+}
+function updateHintBtn() { $('hintBtn').textContent = S.hints[S.room] ? '💡 다시 보기' : '💡'; }
+$('hintBtn').onclick = () => {
+  if (S.mode !== 'play') return;
+  if (!S.hints[S.room]) {
+    openModal(`<h2>💡 힌트</h2><p>힌트는 <b>방마다 1번</b>만 쓸 수 있어요. 지금 쓸까요?</p>
+      <div class="row"><button class="big" onclick="useHint()">힌트 보기</button><button onclick="closeModal()">아껴 둘래요</button></div>`);
+  } else showHint();
+};
+window.useHint = () => { S.hints[S.room] = hintText(); S.hintsUsed++; updateHintBtn(); showHint(); };
+function showHint() { readText('💡 힌트', `<div class="hint">${S.hints[S.room]}</div>`); }
+
+// ===== 좌표 변환 (방 돌리기) =====
+function rotPt(x, y, r) { for (let i = 0; i < r; i++) [x, y] = [N - y, x]; return [x, y]; }
+function rotVec(x, y, r) { for (let i = 0; i < r; i++) [x, y] = [-y, x]; return [x, y]; }
+function unrotVec(x, y, r) { for (let i = 0; i < r; i++) [x, y] = [y, -x]; return [x, y]; }
+function scrRect(o) {
+  const [x1, y1] = rotPt(o.x, o.y, S.r), [x2, y2] = rotPt(o.x + o.w, o.y + o.h, S.r);
+  return { x: Math.min(x1, x2) * T, y: OY + Math.min(y1, y2) * T, w: Math.abs(x2 - x1) * T, h: Math.abs(y2 - y1) * T };
+}
+function decalVisible(o) { const [fx, fy] = rotVec(o.face[0], o.face[1], S.r); return fx === 0 && fy === 1; }
+function rotate(d) {
+  if (S.mode !== 'play' || $('modal').classList.contains('show')) return;
+  S.r = (S.r + d + 4) % 4; S.fade = 0.6; sfx.rot();
+}
+$('rotL').onclick = () => rotate(-1);
+$('rotR').onclick = () => rotate(1);
+
+// ===== 이동 =====
+const keys = {};
+function solidAt(cx, cy) {
+  if (cx < 0 || cy < 0 || cx >= N || cy >= N) return true;
+  return curRoom().objs.some(o => o.solid && cx >= o.x && cx < o.x + o.w && cy >= o.y && cy < o.y + o.h);
+}
+function blocked(x, y) {
+  const r = 0.28;
+  for (const [dx, dy] of [[-r, -r], [r, -r], [-r, r], [r, r]]) if (solidAt(Math.floor(x + dx), Math.floor(y + dy))) return true;
+  return false;
+}
+function move(dt) {
+  let ix = (keys.d ? 1 : 0) - (keys.a ? 1 : 0), iy = (keys.s ? 1 : 0) - (keys.w ? 1 : 0);
+  if (!ix && !iy) { S.moving = false; return; }
+  const len = Math.hypot(ix, iy); ix /= len; iy /= len;
+  const [wx, wy] = unrotVec(ix, iy, S.r);
+  const sp = 3.4 * dt;
+  if (!blocked(S.px + wx * sp, S.py)) S.px += wx * sp;
+  if (!blocked(S.px, S.py + wy * sp)) S.py += wy * sp;
+  S.moving = true;
+}
+function nearObj(o) {
+  const nx = Math.max(o.x, Math.min(S.px, o.x + o.w)), ny = Math.max(o.y, Math.min(S.py, o.y + o.h));
+  return Math.hypot(S.px - nx, S.py - ny) <= 1.45;
+}
+
+// ===== 그리기 =====
+const fog = Array.from({ length: 8 }, () => ({ x: Math.random() * CW, y: Math.random() * CH, r: 90 + Math.random() * 120, vx: (Math.random() - .5) * 14, vy: (Math.random() - .5) * 10 }));
+let now = 0;
+const PAL = {
+  wall: ['#24314c', '#151f33'], door: ['#3a2a2a', '#241818'], cabinet: ['#2c3d5a', '#1b283f'], lockshelf: ['#33405e', '#1f2a42'],
+  table: ['#3a3226', '#2a241b'], bench: ['#2c3550', '#1c2238'], microscope: ['#3b4660', '#252e44'], fridge: ['#4a5670', '#2f384d'],
+  bookshelf: ['#3c2e24', '#2a1f18'], desk: ['#2d2a3c', '#1d1b29'],
+};
+function led(x, y, color, speed = 2, phase = 0) {
+  const on = Math.sin(now * speed + phase) > -0.2;
+  ctx.fillStyle = on ? color : '#222'; ctx.shadowColor = color; ctx.shadowBlur = on ? 8 : 0;
+  ctx.beginPath(); ctx.arc(x, y, 2.5, 0, 7); ctx.fill(); ctx.shadowBlur = 0;
+}
+function drawTall(o, R) {
+  const E = o.H * T, [top, face] = PAL[o.look];
+  const tp = { x: R.x, y: R.y - E, w: R.w, h: R.h }, fr = { x: R.x, y: R.y + R.h - E, w: R.w, h: E };
+  ctx.fillStyle = face; ctx.fillRect(fr.x, fr.y, fr.w, fr.h);
+  ctx.fillStyle = top; ctx.fillRect(tp.x, tp.y, tp.w, tp.h);
+  ctx.strokeStyle = 'rgba(0,0,0,.45)'; ctx.lineWidth = 1; ctx.strokeRect(tp.x + .5, tp.y + .5, tp.w - 1, tp.h - 1);
+  ctx.strokeStyle = 'rgba(160,200,255,.08)'; ctx.beginPath(); ctx.moveTo(fr.x, fr.y + .5); ctx.lineTo(fr.x + fr.w, fr.y + .5); ctx.stroke();
+  const cx = tp.x + tp.w / 2, cy = tp.y + tp.h / 2, h = (o.x * 7 + o.y * 13);
+  switch (o.look) {
+    case 'wall':
+      ctx.strokeStyle = 'rgba(0,0,0,.25)';
+      ctx.beginPath(); ctx.moveTo(fr.x, fr.y + E / 2); ctx.lineTo(fr.x + fr.w, fr.y + E / 2); ctx.stroke();
+      if (h % 5 === 0) { ctx.fillStyle = 'rgba(60,240,200,.12)'; ctx.fillRect(tp.x + 6, tp.y + 6, 4, tp.h - 12); }
+      break;
+    case 'door': {
+      const open = S.flags[o.openFlag];
+      ctx.fillStyle = open ? '#1d5b40' : '#5a1d28'; ctx.fillRect(tp.x + 6, tp.y + 6, tp.w - 12, tp.h - 12);
+      ctx.fillStyle = '#000a'; ctx.fillRect(tp.x + 10, tp.y + 10, tp.w - 20, tp.h - 20);
+      led(cx, cy, open ? '#3cff9a' : '#ff3b4e', open ? 6 : 3);
+      if (o.exit) { ctx.fillStyle = '#3cff9a'; ctx.font = 'bold 10px sans-serif'; ctx.textAlign = 'center'; ctx.fillText('EXIT', cx, tp.y - 2); }
+      break;
+    }
+    case 'cabinet':
+      for (let i = 0; i < 6; i++) { ctx.fillStyle = ['#ff3b4e88', '#3b8bff88', '#ffd23b88', '#b46cff88', '#3cf0c888', '#ff8a2b88'][i]; ctx.beginPath(); ctx.arc(tp.x + 12 + i * 14, cy, 4, 0, 7); ctx.fill(); }
+      ctx.fillStyle = 'rgba(120,180,255,.12)'; ctx.fillRect(fr.x + 6, fr.y + 4, fr.w / 2 - 9, E - 8); ctx.fillRect(fr.x + fr.w / 2 + 3, fr.y + 4, fr.w / 2 - 9, E - 8);
+      break;
+    case 'lockshelf': {
+      const open = S.flags.lockOpen;
+      ctx.fillStyle = '#1b2438'; ctx.fillRect(fr.x + 4, fr.y + 3, fr.w - 8, E - 6);
+      ctx.fillStyle = open ? '#3cff9a' : '#ffcf3b'; ctx.fillRect(fr.x + fr.w / 2 - 6, fr.y + E / 2 - 3, 12, 10);
+      ctx.strokeStyle = open ? '#3cff9a' : '#ffcf3b'; ctx.lineWidth = 2; ctx.beginPath(); ctx.arc(fr.x + fr.w / 2 + (open ? 5 : 0), fr.y + E / 2 - 4, 5, Math.PI, 0); ctx.stroke(); ctx.lineWidth = 1;
+      if (!S.flags.scaleDone) led(tp.x + tp.w - 10, tp.y + 10, '#ffcf3b', 4);
+      break;
+    }
+    case 'table':
+      ctx.fillStyle = '#5a4d38'; ctx.fillRect(tp.x + 4, tp.y + 4, tp.w - 8, tp.h - 8);
+      ctx.fillStyle = '#c9d6e855'; ctx.fillRect(cx - 8, cy - 6, 6, 10); ctx.fillRect(cx + 4, cy - 2, 8, 6);
+      break;
+    case 'bench':
+      ctx.fillStyle = '#1a2033'; ctx.fillRect(tp.x + 6, tp.y + 6, tp.w - 12, tp.h - 12);
+      ['#ff3b4e', '#ffd23b', '#3b8bff'].forEach((c, i) => {
+        const bx = tp.x + 22 + i * 22, by = cy;
+        ctx.fillStyle = c; ctx.shadowColor = c; ctx.shadowBlur = 10 + Math.sin(now * 3 + i) * 4;
+        ctx.beginPath(); ctx.arc(bx, by, 7, 0, 7); ctx.fill(); ctx.shadowBlur = 0;
+        ctx.fillStyle = 'rgba(255,255,255,.5)'; ctx.beginPath(); ctx.arc(bx + 2, by - 3 - ((now * 20 + i * 7) % 8), 1.5, 0, 7); ctx.fill();
+      });
+      if (S.flags.mixDone) { ctx.fillStyle = '#4b2fb0'; ctx.shadowColor = '#4b2fb0'; ctx.shadowBlur = 14; ctx.beginPath(); ctx.arc(cx, cy + 22, 8, 0, 7); ctx.fill(); ctx.shadowBlur = 0; }
+      break;
+    case 'microscope':
+      ctx.fillStyle = '#11151f'; ctx.beginPath(); ctx.arc(cx, cy, 11, 0, 7); ctx.fill();
+      ctx.fillStyle = S.flags.micSeen ? '#b46cff' : '#3a4560'; ctx.beginPath(); ctx.arc(cx, cy, 5, 0, 7); ctx.fill();
+      led(tp.x + tp.w - 8, tp.y + 8, '#3cf0c8', 5);
+      break;
+    case 'fridge':
+      ctx.fillStyle = '#5c6a86'; ctx.fillRect(fr.x + fr.w - 10, fr.y + 6, 3, E - 12);
+      led(tp.x + 9, tp.y + 9, '#3b8bff', 1.5);
+      break;
+    case 'bookshelf':
+      for (let i = 0; i < 12; i++) { ctx.fillStyle = ['#7a2e2e', '#2e4f7a', '#2e7a52', '#7a6a2e', '#5a2e7a'][i % 5]; ctx.fillRect(fr.x + 4 + i * 7.5, fr.y + 5, 6, E - 10); }
+      break;
+    case 'desk': {
+      const scr = S.flags.exitOpen ? '#3cff9a' : '#3cf0c8';
+      ctx.fillStyle = '#0a0f18'; ctx.fillRect(cx - 20, tp.y + 4, 40, 14);
+      ctx.fillStyle = scr; ctx.globalAlpha = .55 + Math.sin(now * 4) * .15; ctx.fillRect(cx - 18, tp.y + 6, 36, 10); ctx.globalAlpha = 1;
+      ctx.fillStyle = '#3a3850'; ctx.fillRect(cx - 16, tp.y + 24, 32, 8);
+      break;
+    }
+  }
+}
+function drawDecal(o, R) {
+  const E = WALL_H * T, f = { x: R.x + 4, y: R.y + R.h - E + 4, w: R.w - 8, h: E - 8 };
+  if (o.look === 'board') {
+    ctx.fillStyle = '#163024'; ctx.fillRect(f.x, f.y, f.w, f.h); ctx.strokeStyle = '#6b5a3a'; ctx.lineWidth = 2; ctx.strokeRect(f.x, f.y, f.w, f.h); ctx.lineWidth = 1;
+    ctx.fillStyle = '#4b2fb0'; ctx.shadowColor = '#4b2fb0'; ctx.shadowBlur = 8; ctx.beginPath(); ctx.arc(f.x + f.w - 18, f.y + f.h / 2, 9, 0, 7); ctx.fill(); ctx.shadowBlur = 0;
+    ctx.fillStyle = '#dfe'; ctx.font = '11px sans-serif'; ctx.textAlign = 'left'; ctx.fillText('목표 색 →', f.x + 6, f.y + f.h / 2 + 4);
+  } else if (o.look === 'poster') {
+    ctx.fillStyle = '#d8d2bc'; ctx.fillRect(f.x, f.y, f.w, f.h);
+    for (let i = 0; i < 18; i++) for (let j = 0; j < 3; j++) { ctx.fillStyle = ['#7aa6d8', '#d88a7a', '#8ad87a'][(i + j) % 3]; ctx.fillRect(f.x + 4 + i * 7.4, f.y + 4 + j * 8, 6, 6); }
+    ctx.fillStyle = '#333'; ctx.font = 'bold 9px sans-serif'; ctx.textAlign = 'center'; ctx.fillText('주기율표', f.x + f.w / 2, f.y + f.h - 2);
+  } else if (o.look === 'whiteboard') {
+    ctx.fillStyle = '#dfe6ee'; ctx.fillRect(f.x, f.y, f.w, f.h);
+    ctx.strokeStyle = '#3b6bd8'; ctx.beginPath(); for (let i = 0; i < 3; i++) { ctx.moveTo(f.x + 6, f.y + 7 + i * 7); ctx.lineTo(f.x + f.w - 20 - i * 10, f.y + 7 + i * 7); } ctx.stroke();
+    ctx.fillStyle = '#9b4dff'; ctx.beginPath(); ctx.arc(f.x + f.w - 12, f.y + f.h - 8, 5, 0, 7); ctx.fill();
+  }
+}
+function drawFlat(o, R) {
+  const cx = R.x + R.w / 2, cy = R.y + R.h / 2, p = .6 + Math.sin(now * 4 + o.x) * .4;
+  switch (o.look) {
+    case 'vial':
+      ctx.fillStyle = 'rgba(80,255,120,.35)'; ctx.shadowColor = '#4cff7a'; ctx.shadowBlur = 20 * p;
+      ctx.beginPath(); ctx.ellipse(cx, cy, 18, 11, .3, 0, 7); ctx.fill(); ctx.shadowBlur = 0;
+      ctx.strokeStyle = '#cfe'; ctx.beginPath(); ctx.moveTo(cx - 8, cy - 2); ctx.lineTo(cx - 2, cy - 6); ctx.moveTo(cx + 3, cy + 4); ctx.lineTo(cx + 9, cy + 1); ctx.moveTo(cx - 3, cy + 5); ctx.lineTo(cx, cy + 9); ctx.stroke();
+      break;
+    case 'memo':
+      ctx.save(); ctx.translate(cx, cy); ctx.rotate(-.2);
+      ctx.shadowColor = '#fff'; ctx.shadowBlur = 8 * p; ctx.fillStyle = '#e8e2cc'; ctx.fillRect(-9, -11, 18, 22); ctx.shadowBlur = 0;
+      ctx.strokeStyle = '#776'; ctx.beginPath(); for (let i = 0; i < 4; i++) { ctx.moveTo(-6, -6 + i * 5); ctx.lineTo(6, -6 + i * 5); } ctx.stroke(); ctx.restore();
+      break;
+    case 'bottle':
+      ctx.fillStyle = '#c9d6e8aa'; ctx.fillRect(cx - 3, cy - 13, 6, 6);
+      ctx.fillStyle = o.color; ctx.shadowColor = o.color; ctx.shadowBlur = 10 * p;
+      ctx.beginPath(); ctx.roundRect(cx - 8, cy - 8, 16, 20, 4); ctx.fill(); ctx.shadowBlur = 0;
+      ctx.fillStyle = 'rgba(255,255,255,.35)'; ctx.fillRect(cx - 5, cy - 4, 3, 10);
+      break;
+    case 'antidote':
+      ctx.fillStyle = '#3cf0c8'; ctx.shadowColor = '#3cf0c8'; ctx.shadowBlur = 22 * p;
+      ctx.beginPath(); ctx.roundRect(cx - 5, cy - 12, 10, 24, 5); ctx.fill(); ctx.shadowBlur = 0;
+      ctx.fillStyle = '#fff'; ctx.fillRect(cx - 5, cy - 14, 10, 4);
+      break;
+    case 'diary':
+      ctx.shadowColor = '#ffb85a'; ctx.shadowBlur = 12 * p; ctx.fillStyle = '#6b3d1e'; ctx.fillRect(cx - 11, cy - 13, 22, 26); ctx.shadowBlur = 0;
+      ctx.fillStyle = '#d4a54a'; ctx.fillRect(cx - 11, cy - 13, 4, 26); ctx.fillRect(cx - 2, cy - 4, 9, 2);
+      break;
+  }
+}
+function drawPlayer(alpha = 1) {
+  const [sx, sy] = rotPt(S.px, S.py, S.r), x = sx * T, y = OY + sy * T, bob = S.moving ? Math.sin(now * 14) * 2 : 0;
+  ctx.globalAlpha = alpha;
+  ctx.fillStyle = 'rgba(0,0,0,.45)'; ctx.beginPath(); ctx.ellipse(x, y + 6, 13, 6, 0, 0, 7); ctx.fill();
+  ctx.fillStyle = '#dfe8f0'; ctx.beginPath(); ctx.roundRect(x - 11, y - 18 + bob, 22, 24, 8); ctx.fill();
+  ctx.fillStyle = '#9fb3cf'; ctx.fillRect(x - 1, y - 14 + bob, 2, 18);
+  ctx.fillStyle = '#f2c9a0'; ctx.beginPath(); ctx.arc(x, y - 24 + bob, 9, 0, 7); ctx.fill();
+  ctx.fillStyle = '#3a2a1e'; ctx.beginPath(); ctx.arc(x, y - 27 + bob, 9, Math.PI, 0); ctx.fill();
+  ctx.fillStyle = '#3cf0c8'; ctx.fillRect(x - 7, y - 25 + bob, 14, 4);
+  ctx.globalAlpha = 1;
+}
+
+let hover = null, mouse = null;
+function drawList() {
+  const objs = curRoom().objs, flats = [], rest = [];
+  for (const o of objs) {
+    const R = scrRect(o);
+    if (o.kind === 'flat') flats.push({ o, R });
+    else if (o.kind === 'decal') { if (decalVisible(o)) rest.push({ o, R, key: R.y + R.h + 0.01 }); }
+    else rest.push({ o, R, key: R.y + R.h });
+  }
+  const [, psy] = rotPt(S.px, S.py, S.r);
+  rest.push({ player: true, key: OY + psy * T + 0.3 * T });
+  rest.sort((a, b) => a.key - b.key);
+  return { flats, rest };
+}
+function hitRect(d) {
+  const { o, R } = d;
+  if (o.kind === 'tall') { const E = o.H * T; return { x: R.x, y: R.y - E, w: R.w, h: R.h + E }; }
+  if (o.kind === 'decal') { const E = WALL_H * T; return { x: R.x, y: R.y + R.h - E, w: R.w, h: E }; }
+  return R;
+}
+function pick(mx, my) {
+  const { flats, rest } = drawList();
+  for (const d of [...rest].reverse().concat(flats)) {
+    if (d.player) continue;
+    const h = hitRect(d);
+    if (mx >= h.x && mx < h.x + h.w && my >= h.y && my < h.y + h.h) return d.o;
+  }
+  return null;
+}
+
+function draw() {
+  const R0 = curRoom();
+  ctx.fillStyle = '#04060c'; ctx.fillRect(0, 0, CW, CH);
+  for (let i = 0; i < N; i++) for (let j = 0; j < N; j++) {
+    ctx.fillStyle = (i + j) % 2 ? R0.tint : shade(R0.tint);
+    ctx.fillRect(i * T, OY + j * T, T, T);
+  }
+  ctx.strokeStyle = 'rgba(120,170,255,.05)';
+  for (let i = 0; i <= N; i++) { ctx.beginPath(); ctx.moveTo(i * T, OY); ctx.lineTo(i * T, OY + N * T); ctx.moveTo(0, OY + i * T); ctx.lineTo(CW, OY + i * T); ctx.stroke(); }
+
+  const { flats, rest } = drawList();
+  flats.forEach(d => drawFlat(d.o, d.R));
+  for (const d of rest) {
+    if (d.player) drawPlayer();
+    else if (d.o.kind === 'tall') drawTall(d.o, d.R);
+    else drawDecal(d.o, d.R);
+  }
+  drawPlayer(0.28);
+
+  // 독가스
+  const p = 1 - S.time / MAX_TIME;
+  for (const f of fog) {
+    const g = ctx.createRadialGradient(f.x, f.y, 0, f.x, f.y, f.r);
+    g.addColorStop(0, `rgba(70,255,110,${0.06 + p * 0.28})`); g.addColorStop(1, 'rgba(70,255,110,0)');
+    ctx.fillStyle = g; ctx.fillRect(f.x - f.r, f.y - f.r, f.r * 2, f.r * 2);
+  }
+  ctx.fillStyle = `rgba(40,200,90,${p * 0.22})`; ctx.fillRect(0, 0, CW, CH);
+  if (S.puff > 0) { ctx.fillStyle = `rgba(90,255,120,${S.puff * 0.35})`; ctx.fillRect(0, 0, CW, CH); }
+  const vg = ctx.createRadialGradient(CW / 2, CH / 2, CW * 0.3, CW / 2, CH / 2, CW * 0.8);
+  vg.addColorStop(0, 'rgba(0,0,0,0)'); vg.addColorStop(1, `rgba(0,0,0,${0.55 + p * 0.3})`);
+  ctx.fillStyle = vg; ctx.fillRect(0, 0, CW, CH);
+  if (Math.random() < 0.004) { ctx.fillStyle = 'rgba(0,0,0,.5)'; ctx.fillRect(0, 0, CW, CH); }
+  if (S.fade > 0) { ctx.fillStyle = `rgba(0,0,0,${S.fade})`; ctx.fillRect(0, 0, CW, CH); }
+
+  // 이름표
+  if (hover && mouse && S.mode === 'play') {
+    const close = nearObj(hover);
+    ctx.font = 'bold 13px sans-serif'; ctx.textAlign = 'center';
+    const label = hover.name + (close ? '' : ' (멀어요)'), w = ctx.measureText(label).width + 14;
+    const lx = Math.max(w / 2, Math.min(CW - w / 2, mouse[0])), ly = Math.max(20, mouse[1] - 16);
+    ctx.fillStyle = 'rgba(5,10,20,.85)'; ctx.fillRect(lx - w / 2, ly - 15, w, 21);
+    ctx.fillStyle = close ? '#3cf0c8' : '#9fb3cf'; ctx.fillText(label, lx, ly);
+  }
+}
+function shade(hex) {
+  const n = parseInt(hex.slice(1), 16), f = 1.15;
+  const c = [(n >> 16) & 255, (n >> 8) & 255, n & 255].map(v => Math.min(255, Math.round(v * f)));
+  return `rgb(${c.join(',')})`;
+}
+
+// ===== 입력 =====
+function canvasXY(e) {
+  const r = cv.getBoundingClientRect();
+  return [(e.clientX - r.left) * CW / r.width, (e.clientY - r.top) * CH / r.height];
+}
+cv.addEventListener('mousemove', e => {
+  mouse = canvasXY(e);
+  hover = S && S.mode === 'play' ? pick(...mouse) : null;
+  cv.style.cursor = hover ? 'pointer' : 'default';
+});
+cv.addEventListener('mouseleave', () => { mouse = null; hover = null; });
+cv.addEventListener('click', e => {
+  if (!S || S.mode !== 'play' || $('modal').classList.contains('show')) return;
+  const o = pick(...canvasXY(e));
+  if (!o) return;
+  if (!nearObj(o)) { say(`<b>${o.name}</b>까지 너무 멀어요. 조금 더 가까이 가 보세요.`); return; }
+  o.use.call(o);
+});
+addEventListener('keydown', e => {
+  const k = e.key.length === 1 ? e.key.toLowerCase() : e.key;
+  if ($('modal').classList.contains('show')) {
+    if (k === 'Escape') closeModal();
+    else if (S && S.modalKey) S.modalKey(e.key);
+    return;
+  }
+  if (!S) return;
+  if (k === 'p' || k === 'Escape') { togglePause(); return; }
+  if (S.mode !== 'play') return;
+  if ('wasd'.includes(k) && k.length === 1) { keys[k] = true; e.preventDefault(); }
+  // 한글 자판(ㅈㅁㄴㅇ)에서도 움직이도록
+  const ko = { 'ㅈ': 'w', 'ㅁ': 'a', 'ㄴ': 's', 'ㅇ': 'd' }[k]; if (ko) keys[ko] = true;
+  if (k === '<' || k === ',') rotate(-1);
+  if (k === '>' || k === '.') rotate(1);
+});
+addEventListener('keyup', e => {
+  const k = e.key.length === 1 ? e.key.toLowerCase() : e.key;
+  if ('wasd'.includes(k) && k.length === 1) keys[k] = false;
+  const ko = { 'ㅈ': 'w', 'ㅁ': 'a', 'ㄴ': 's', 'ㅇ': 'd' }[k]; if (ko) keys[ko] = false;
+});
+addEventListener('blur', () => { for (const k in keys) keys[k] = false; });
+$('soundBtn').onclick = () => { soundOn = !soundOn; $('soundBtn').textContent = soundOn ? '🔊' : '🔇'; };
+$('pauseBtn').onclick = () => togglePause();
+function togglePause() {
+  if (!S) return;
+  if (S.mode === 'play') {
+    S.mode = 'pause';
+    openModal(`<h2>⏸ 일시정지</h2><p>독가스도 잠시 멈췄어요.</p><div class="row"><button class="big" onclick="closeModal()">계속하기</button><button onclick="closeModal();newGame();">처음부터</button></div>`, () => { if (S.mode === 'pause') S.mode = 'play'; });
+  } else if (S.mode === 'pause') closeModal();
+}
+
+// ===== 끝 =====
+function fmt(t) { t = Math.max(0, Math.ceil(t)); return String(Math.floor(t / 60)).padStart(2, '0') + ':' + String(t % 60).padStart(2, '0'); }
+function getBest() { try { return +localStorage.getItem('labEscapeBest15') || 0; } catch (e) { return 0; } }
+function setBest(v) { try { localStorage.setItem('labEscapeBest15', v); } catch (e) {} }
+function win() {
+  S.mode = 'end'; sfx.ok(); setTimeout(sfx.ok, 400);
+  const best = getBest(), isBest = S.time > best;
+  if (isBest) setBest(Math.ceil(S.time));
+  openModal(`<h2>🎉 탈출 성공!</h2>
+    <p>출구 문을 열고 나오자 박사님이 깜짝 놀란 얼굴로 서 있었다.</p>
+    <p>손에 든 보라 용액을 본 박사님이 외쳤다.<br><b style="font-size:18px;color:var(--glow)">"네가 해독제를 완성했구나!"</b></p>
+    <p>내가 만든 보라 용액이 바로 해독제의 <b>마지막 재료</b>였던 것이다. 실수로 시작된 위기가, 박사님의 연구를 완성시켰다! 🧪✨</p>
+    <div class="stat"><span>남은 시간</span><b>${fmt(S.time)} ${isBest ? '🏆 최고 기록!' : ''}</b></div>
+    <div class="stat"><span>찾은 해독제</span><b>${S.antidotes + S.bag.filter(i => i === 'antidote').length} / 2</b></div>
+    <div class="stat"><span>쓴 힌트</span><b>${S.hintsUsed} / 3</b></div>
+    <div class="row"><button class="big" onclick="closeModal()">다시 하기</button></div>`, newGame);
+}
+function lose() {
+  S.mode = 'end'; sfx.bad();
+  openModal(`<h2 style="color:var(--danger)">☠️ 쓰러졌다…</h2>
+    <p>독가스가 실험실을 가득 채웠다. 눈앞이 초록빛으로 흐려지며 정신을 잃고 말았다…</p>
+    <p style="color:var(--dim)">팁: 해독제는 각 방의 가구 뒤에 숨어 있어요. &lt; &gt; 로 방을 돌려 보세요!</p>
+    <div class="row"><button class="big" onclick="closeModal()">다시 도전</button></div>`, newGame);
+}
+
+// ===== 시작 화면 =====
+function startScreen() {
+  const best = getBest();
+  S = { mode: 'start', room: 0, r: 0, px: 2.5, py: 6.5, time: MAX_TIME, bag: [], flags: {}, hints: [null, null, null], fade: 0, rooms: [room1(), room2(), room3()] };
+  renderBag();
+  openModal(`<h2>🧪 비밀 실험실 탈출</h2>
+    <p>나는 천재 박사님의 조수. 박사님의 명령으로 실험 도구를 가지러 왔다가… <b style="color:var(--danger)">독이 든 시험관을 깨트리고 말았다!</b></p>
+    <p>문은 잠겨 있고 초록색 독가스가 퍼지고 있다. <b>15분</b> 안에 방 3개를 지나 실험실을 탈출하자!</p>
+    <div class="hint" style="font-size:14px;line-height:1.7">
+      ⌨️ <b>WASD</b> 이동<br>🖱️ 물건 <b>클릭</b>으로 조사 (가까이 가야 해요)<br>🔄 <b>&lt; &gt;</b> 방 돌리기 — 가구 뒤에 숨은 것을 찾아요<br>💉 해독제를 마시면 +2분 · 💡 힌트는 방마다 1번
+    </div>
+    ${best ? `<p style="text-align:center;color:var(--dim)">🏆 최고 기록: ${fmt(best)} 남기고 탈출</p>` : ''}
+    <div class="row"><button class="big" onclick="closeModal()">시작하기</button></div>`, () => { if (S.mode === 'start') newGame(); });
+}
+
+// ===== 루프 =====
+let last = performance.now(), lastBlur = -1;
+function loop(t) {
+  const dt = Math.min(0.05, (t - last) / 1000); last = t; now = t / 1000;
+  if (S.mode === 'play') {
+    const modalOpen = $('modal').classList.contains('show');
+    if (!modalOpen) move(dt);
+    S.time -= dt;
+    if (S.time <= 120) { S.heartT -= dt; if (S.heartT <= 0) { sfx.heart(); S.heartT = 1 - (120 - S.time) / 240; } }
+    if (S.time <= 0) { S.time = 0; lose(); }
+  }
+  if (S.fade > 0) S.fade = Math.max(0, S.fade - dt * 2.5);
+  if (S.puff > 0) S.puff = Math.max(0, S.puff - dt * 1.5);
+  for (const f of fog) { f.x += f.vx * dt; f.y += f.vy * dt; if (f.x < -100 || f.x > CW + 100) f.vx *= -1; if (f.y < -100 || f.y > CH + 100) f.vy *= -1; }
+
+  const ratio = S.time / MAX_TIME;
+  $('gaugeFill').style.width = (ratio * 100) + '%';
+  $('gaugeFill').style.background = ratio > .5 ? 'linear-gradient(90deg,#2bd17e,#8cf06a)' : ratio > .2 ? 'linear-gradient(90deg,#d1b02b,#f0d86a)' : 'linear-gradient(90deg,#d12b45,#f06a7a)';
+  $('gauge').classList.toggle('low', ratio <= .1 && S.mode === 'play');
+  $('timeText').textContent = '버틸 수 있는 시간 ' + fmt(S.time);
+  const blur = Math.round((1 - ratio) * 16) / 10;
+  if (blur !== lastBlur) { cv.style.filter = `blur(${blur}px) saturate(${1 + (1 - ratio) * .3})`; lastBlur = blur; }
+
+  draw();
+  requestAnimationFrame(loop);
+}
+startScreen();
+requestAnimationFrame(loop);
+</script>
+</body>
+</html>

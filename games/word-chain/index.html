@@ -1,0 +1,696 @@
+<!doctype html>
+<html lang="ko">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta charset="utf-8">
+<title>칠판 끝말잇기</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Nanum+Pen+Script&family=Gowun+Dodum&display=swap">
+<style>
+/* 교실 벽 위에 걸린 칠판 하나. 모든 화면은 칠판 안에서 바뀌고, 분필 받침대에 조작 버튼이 놓인다. */
+:root {
+  color-scheme: dark;
+  --wall: #1d2421;
+  --wall-line: #262f2b;
+  --board: #29443a;
+  --board-deep: #213930;
+  --wood: #7b5536;
+  --wood-dark: #5a3c25;
+  --chalk: #f1eee4;
+  --chalk-dim: #b9c4bc;
+  --chalk-yellow: #f1d98a;
+  --chalk-pink: #f2a69c;
+  --chalk-blue: #a9d4e8;
+  --smudge: rgba(241, 238, 228, .08);
+  --font-chalk: "Nanum Pen Script", "Gaegu", cursive;
+  --font-ui: "Gowun Dodum", "Apple SD Gothic Neo", "Malgun Gothic", sans-serif;
+}
+html, body { height: 100%; }
+body {
+  background: var(--wall);
+  background-image: repeating-linear-gradient(90deg, transparent 0 79px, var(--wall-line) 79px 80px);
+  color: var(--chalk);
+  font-family: var(--font-ui);
+  font-size: 16px;
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+  padding-block: 20px;
+  box-sizing: border-box;
+}
+* { box-sizing: border-box; }
+button, input { font: inherit; color: inherit; }
+.room { max-width: 860px; margin: 0 auto; display: flex; flex-direction: column; min-height: 100%; }
+
+.frame {
+  background: linear-gradient(180deg, var(--wood) 0%, var(--wood-dark) 100%);
+  padding: 14px;
+  border-radius: 6px;
+  box-shadow: 0 18px 40px rgba(0,0,0,.45);
+}
+.board {
+  position: relative;
+  min-height: 520px;
+  background:
+    radial-gradient(ellipse at 30% 20%, var(--smudge), transparent 55%),
+    radial-gradient(ellipse at 75% 80%, var(--smudge), transparent 50%),
+    var(--board);
+  border-radius: 2px;
+  box-shadow: inset 0 0 60px var(--board-deep);
+  padding: 22px clamp(16px, 4vw, 36px);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+.tray {
+  height: 16px; margin: 0 -6px;
+  background: var(--wood-dark);
+  border-radius: 0 0 6px 6px;
+  box-shadow: 0 6px 12px rgba(0,0,0,.4);
+  position: relative;
+}
+.tray::before, .tray::after { content: ""; position: absolute; top: -6px; height: 8px; border-radius: 3px; }
+.tray::before { left: 18%; width: 46px; background: var(--chalk); }
+.tray::after { left: 26%; width: 34px; background: var(--chalk-yellow); }
+
+.screen { display: flex; flex-direction: column; flex: 1; gap: 18px; }
+.chalk { font-family: var(--font-chalk); line-height: 1.1; }
+h1.chalk { font-size: clamp(56px, 11vw, 92px); margin: 0; font-weight: 400; text-wrap: balance; }
+.sub { color: var(--chalk-dim); margin: 0; line-height: 1.6; }
+.label { font-size: 13px; letter-spacing: .08em; color: var(--chalk-dim); }
+
+.btn {
+  border: 2px solid var(--chalk);
+  background: transparent;
+  border-radius: 10px 14px 9px 13px;
+  padding: 10px 18px;
+  cursor: pointer;
+  transition: background .15s;
+}
+.btn:hover { background: var(--smudge); }
+.btn:focus-visible, .input:focus-visible, .pick:focus-visible { outline: 3px dashed var(--chalk-yellow); outline-offset: 3px; }
+.btn.solid { background: var(--chalk); color: var(--board); font-weight: 700; }
+.btn.solid:hover { background: var(--chalk-yellow); }
+.btn.small { padding: 6px 12px; font-size: 14px; }
+.btn:disabled { opacity: .35; cursor: not-allowed; }
+.row { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; }
+
+/* 메뉴 */
+.menu-modes { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 16px; }
+.pick {
+  text-align: left; border: 2px dashed var(--chalk-dim); background: transparent;
+  border-radius: 14px; padding: 18px; cursor: pointer; display: flex; flex-direction: column; gap: 6px;
+}
+.pick:hover { border-color: var(--chalk); background: var(--smudge); }
+.pick .chalk { font-size: 38px; }
+.pick .sub { font-size: 14px; }
+.levels { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 14px; }
+.pick .meta { font-size: 13px; color: var(--chalk-yellow); }
+
+/* 대결 */
+.status { display: flex; flex-wrap: wrap; gap: 8px 18px; font-size: 14px; color: var(--chalk-dim); }
+.status b { color: var(--chalk); font-weight: 400; font-variant-numeric: tabular-nums; }
+.stage { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; gap: 8px; min-height: 220px; }
+.who { font-family: var(--font-chalk); font-size: 28px; color: var(--chalk-dim); }
+.who.me { color: var(--chalk-blue); }
+.word {
+  font-family: var(--font-chalk); font-size: clamp(72px, 17vw, 150px); line-height: 1;
+  text-shadow: 0 0 2px rgba(241,238,228,.5); word-break: keep-all; overflow-wrap: anywhere;
+}
+.word.writing { animation: write .7s steps(12) both; }
+.word.erasing { animation: erase .35s ease-in both; }
+@keyframes write { from { clip-path: inset(0 100% 0 0); } to { clip-path: inset(0 0 0 0); } }
+@keyframes erase { to { opacity: 0; filter: blur(6px); transform: translateX(14px); } }
+.next { font-size: 15px; color: var(--chalk-dim); }
+.next em { font-style: normal; font-family: var(--font-chalk); font-size: 30px; color: var(--chalk-yellow); padding: 0 2px; }
+.msg { min-height: 1.6em; font-size: 15px; text-align: center; }
+.msg.warn { color: var(--chalk-yellow); }
+.msg.bad { color: var(--chalk-pink); }
+.msg.good { color: var(--chalk-blue); }
+.hintline { font-family: var(--font-chalk); font-size: 34px; color: var(--chalk-yellow); min-height: 1.1em; text-align: center; letter-spacing: .08em; }
+form.say { display: flex; gap: 10px; }
+.input {
+  flex: 1; min-width: 0; background: var(--board-deep); border: 2px solid var(--chalk-dim);
+  border-radius: 10px; padding: 12px 14px; font-size: 18px;
+}
+.input::placeholder { color: var(--chalk-dim); opacity: .7; }
+.thinking::after { content: "…"; animation: dots 1s steps(3) infinite; display: inline-block; width: 1.2em; overflow: hidden; vertical-align: bottom; }
+@keyframes dots { from { width: 0; } to { width: 1.2em; } }
+
+/* 지난 단어 / 결과 목록 */
+.overlay { position: absolute; inset: 0; background: rgba(23, 38, 32, .96); padding: 22px clamp(16px, 4vw, 36px); display: flex; flex-direction: column; gap: 14px; z-index: 5; }
+.list { flex: 1; overflow-y: auto; display: flex; flex-direction: column; gap: 10px; padding-right: 4px; min-height: 0; }
+.entry { display: grid; grid-template-columns: 2.4em minmax(0, 1fr); gap: 4px 10px; align-items: baseline; border-bottom: 1px dashed rgba(241,238,228,.18); padding-bottom: 8px; }
+.entry .n { color: var(--chalk-dim); font-size: 13px; font-variant-numeric: tabular-nums; }
+.entry .w { font-family: var(--font-chalk); font-size: 30px; }
+.entry .w small { font-family: var(--font-ui); font-size: 12px; color: var(--chalk-dim); margin-left: 8px; }
+.entry .w.me { color: var(--chalk-blue); }
+.entry .d { grid-column: 2; font-size: 14px; color: var(--chalk-dim); line-height: 1.5; }
+
+/* 결과 */
+.verdict { font-family: var(--font-chalk); font-size: clamp(64px, 14vw, 110px); line-height: 1; margin: 0; font-weight: 400; }
+.verdict.win { color: var(--chalk-yellow); }
+.verdict.lose { color: var(--chalk-pink); }
+.result-top { display: flex; flex-wrap: wrap; gap: 8px 24px; align-items: end; }
+.big-num { font-family: var(--font-chalk); font-size: 48px; color: var(--chalk); font-variant-numeric: tabular-nums; }
+
+/* 기차 퀴즈 */
+.train { display: flex; align-items: flex-end; justify-content: center; gap: 0; flex-wrap: nowrap; width: 100%; }
+.car {
+  position: relative; flex: 0 1 200px; min-width: 0;
+  border: 3px solid var(--chalk); border-radius: 12px 12px 6px 6px;
+  padding: 18px 8px 26px; text-align: center;
+  font-family: var(--font-chalk); font-size: clamp(32px, 8vw, 60px); line-height: 1;
+  overflow-wrap: anywhere;
+}
+.car::before, .car::after { content: ""; position: absolute; bottom: -16px; width: 22px; height: 22px; border: 3px solid var(--chalk); border-radius: 50%; background: var(--board); }
+.car::before { left: 16%; } .car::after { right: 16%; }
+.car.hole { border-style: dashed; color: var(--chalk-yellow); }
+.car.hole.ok { border-style: solid; border-color: var(--chalk-blue); color: var(--chalk-blue); }
+.car.hole.no { border-color: var(--chalk-pink); color: var(--chalk-pink); }
+.link { flex: 0 0 clamp(10px, 3vw, 28px); height: 3px; background: var(--chalk); margin-bottom: 22px; }
+.rule { font-size: 15px; color: var(--chalk-dim); text-align: center; line-height: 1.6; }
+.rule em { font-style: normal; font-family: var(--font-chalk); font-size: 28px; color: var(--chalk-yellow); }
+.dots { display: flex; gap: 6px; flex-wrap: wrap; }
+.dot { width: 14px; height: 14px; border-radius: 50%; border: 2px solid var(--chalk-dim); }
+.dot.ok { background: var(--chalk-blue); border-color: var(--chalk-blue); }
+.dot.no { background: var(--chalk-pink); border-color: var(--chalk-pink); }
+.dot.now { border-color: var(--chalk-yellow); }
+
+.loading { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 10px; text-align: center; }
+.foot { color: var(--chalk-dim); font-size: 12px; text-align: center; margin-top: 18px; line-height: 1.6; }
+
+@media (max-width: 520px) {
+  .frame { padding: 9px; }
+  .board { min-height: 480px; padding-block: 16px; }
+  form.say .btn { padding-inline: 14px; }
+  .car { padding: 14px 4px 22px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .word.writing, .word.erasing, .thinking::after { animation: none; }
+}
+</style>
+
+<div class="room">
+  <div class="frame"><div class="board" id="board">
+    <div class="loading" id="loading">
+      <div class="chalk" style="font-size:44px">사전 펼치는 중</div>
+      <p class="sub" id="loadText">표준국어대사전 명사 약 20만 개를 칠판에 옮기고 있어요.</p>
+    </div>
+  </div></div>
+  <div class="tray" aria-hidden="true"></div>
+  <p class="foot">단어 출처: 국립국어원 표준국어대사전 (명사, 두 글자 이상, 인명·지명 제외)</p>
+</div>
+
+<script>
+(() => {
+  const LEVELS = {
+    easy:   { name: '쉬움', icon: '🐣', hints: 4, tiers: [1],     desc: '자주 쓰는 쉬운 단어만 내요. 한방단어는 안 써요.' },
+    normal: { name: '보통', icon: '🦊', hints: 5, tiers: [1, 2],  desc: '일반 단어를 내고, 가끔 한방단어로 끝내려 해요.' },
+    hard:   { name: '어려움', icon: '🐉', hints: 4, tiers: [1, 2, 3], desc: '어려운 단어까지 쓰고, 한방단어를 자주 노려요.' },
+  };
+  const CHO = 'ㄱㄲㄴㄷㄸㄹㅁㅂㅃㅅㅆㅇㅈㅉㅊㅋㅌㅍㅎ';
+  const Y_VOWELS = new Set([2, 6, 7, 12, 17, 20]); // ㅑ ㅕ ㅖ ㅛ ㅠ ㅣ
+
+  const board = document.getElementById('board');
+  const tierOf = new Map();       // 단어 → 1(쉬움) 2(보통) 3(어려움)
+  const byFirst = new Map();      // 첫 글자 → 단어 목록
+  const defCache = new Map();     // 초성 번호 → {단어: 뜻}
+
+  const rand = n => Math.floor(Math.random() * n);
+  const pickOne = a => a[rand(a.length)];
+  const isSyl = ch => ch >= '가' && ch <= '힣';
+  const first = w => w[0];
+  const last = w => w[w.length - 1];
+  const esc = s => s.replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+
+  // 두음법칙: 력→역, 녀→여, 라→나 …
+  function dueum(syl) {
+    const c = syl.charCodeAt(0) - 0xAC00;
+    const cho = Math.floor(c / 588), jung = Math.floor((c % 588) / 28), jong = c % 28;
+    let to = -1;
+    if (cho === 5) to = Y_VOWELS.has(jung) ? 11 : 2;
+    else if (cho === 2 && Y_VOWELS.has(jung)) to = 11;
+    return to < 0 ? null : String.fromCharCode(0xAC00 + to * 588 + jung * 28 + jong);
+  }
+  function startsFor(syl) {
+    const d = dueum(syl);
+    return d ? [syl, d] : [syl];
+  }
+  function choseong(w) {
+    return [...w].map(ch => isSyl(ch) ? CHO[Math.floor((ch.charCodeAt(0) - 0xAC00) / 588)] : ch).join('');
+  }
+  const contCache = new Map();
+  function contCount(syl) {
+    if (!contCache.has(syl)) contCache.set(syl, startsFor(syl).reduce((n, s) => n + (byFirst.get(s)?.length || 0), 0));
+    return contCache.get(syl);
+  }
+  const isHanbang = w => contCount(last(w)) === 0;
+  function candidates(syl) {
+    return startsFor(syl).flatMap(s => byFirst.get(s) || []);
+  }
+
+  async function getDef(w) {
+    const k = Math.floor((w.charCodeAt(0) - 0xAC00) / 588);
+    if (!defCache.has(k)) {
+      defCache.set(k, fetch(`defs/${k}.json`).then(r => r.json()).catch(() => ({})));
+    }
+    const shard = await defCache.get(k);
+    return shard[w] || '';
+  }
+
+  // ---------- 화면 공통 ----------
+  function show(html) {
+    board.innerHTML = `<div class="screen">${html}</div>`;
+    return board.firstElementChild;
+  }
+  const $ = sel => board.querySelector(sel);
+
+  // ---------- 메뉴 ----------
+  function menu() {
+    show(`
+      <div>
+        <p class="label">국어 시간 · 분필 대결</p>
+        <h1 class="chalk">칠판 끝말잇기</h1>
+        <p class="sub">컴퓨터와 한 단어씩 번갈아 칠판에 적어요. 표준국어대사전에 있는 명사만 인정돼요.</p>
+      </div>
+      <div class="menu-modes">
+        <button class="pick" id="goBattle">
+          <span class="chalk">⚔️ 컴퓨터와 대결</span>
+          <span class="sub">단판 승부. 못 이으면 지고, 컴퓨터가 못 이으면 이겨요.</span>
+        </button>
+        <button class="pick" id="goQuiz">
+          <span class="chalk">🚃 기차 퀴즈</span>
+          <span class="sub">기차 칸 사이 빈칸에 들어갈 단어를 맞혀요. 10문제.</span>
+        </button>
+      </div>
+      <div class="sub" style="font-size:14px">
+        규칙 · 두 글자 이상 명사 · 두음법칙 허용 (력→역) · 제한 시간 없음 · 첫 라운드엔 한방단어 금지 · 같은 단어 반복은 경고 2번 뒤 패배
+      </div>`);
+    $('#goBattle').onclick = chooseLevel;
+    $('#goQuiz').onclick = startQuiz;
+  }
+
+  function chooseLevel() {
+    show(`
+      <div class="row" style="justify-content:space-between">
+        <p class="label">난이도 고르기</p>
+        <button class="btn small" id="back">← 처음으로</button>
+      </div>
+      <h1 class="chalk" style="font-size:clamp(44px,9vw,68px)">누구랑 겨룰까요?</h1>
+      <div class="levels">
+        ${Object.entries(LEVELS).map(([k, L]) => `
+          <button class="pick" data-level="${k}">
+            <span class="chalk">${L.icon} ${L.name}</span>
+            <span class="sub">${L.desc}</span>
+            <span class="meta">힌트 ${L.hints}개</span>
+          </button>`).join('')}
+      </div>`);
+    $('#back').onclick = menu;
+    board.querySelectorAll('[data-level]').forEach(b => b.onclick = () => startBattle(b.dataset.level));
+  }
+
+  // ---------- 대결 ----------
+  let G = null;
+
+  function startBattle(level) {
+    G = { level, L: LEVELS[level], chain: [], used: new Set(), hints: LEVELS[level].hints, warns: 0, shownHints: new Set(), over: false };
+    show(`
+      <div class="status">
+        <span>${G.L.icon} <b>${G.L.name}</b></span>
+        <span>이은 단어 <b id="sCount">0</b></span>
+        <span>힌트 <b id="sHint">${G.hints}</b>개</span>
+        <span>경고 <b id="sWarn">0</b>/2</span>
+      </div>
+      <div class="stage">
+        <div class="who me" id="who">내 차례</div>
+        <div class="word" id="word">?</div>
+        <div class="next" id="next">아무 명사로 시작하세요. 한방단어만 빼고요.</div>
+      </div>
+      <div class="hintline" id="hintline"></div>
+      <div class="msg" id="msg"></div>
+      <form class="say" id="say" autocomplete="off">
+        <input class="input" id="sayInput" placeholder="단어를 적어 보세요" maxlength="20" aria-label="내 단어">
+        <button class="btn solid" type="submit">말하기</button>
+      </form>
+      <div class="row">
+        <button class="btn small" id="hintBtn">✎ 힌트</button>
+        <button class="btn small" id="pastBtn">지난 단어 보기</button>
+        <button class="btn small" id="giveBtn">포기하기</button>
+      </div>`);
+    $('#say').onsubmit = e => { e.preventDefault(); playerSay(); };
+    $('#hintBtn').onclick = useHint;
+    $('#pastBtn').onclick = showPast;
+    $('#giveBtn').onclick = () => endBattle(false, '포기했어요.');
+    $('#sayInput').focus();
+  }
+
+  function setMsg(text, kind = '') { const m = $('#msg'); if (m) { m.textContent = text; m.className = 'msg ' + kind; } }
+  function updateStatus() {
+    $('#sCount').textContent = G.chain.length;
+    $('#sHint').textContent = G.hints;
+    $('#sWarn').textContent = G.warns;
+    $('#hintBtn').disabled = G.hints <= 0 || G.over;
+  }
+  function writeWord(w, who) {
+    const el = $('#word');
+    el.classList.remove('writing');
+    el.classList.add('erasing');
+    setTimeout(() => {
+      el.classList.remove('erasing');
+      el.textContent = w;
+      void el.offsetWidth;
+      el.classList.add('writing');
+    }, 330);
+    const whoEl = $('#who');
+    whoEl.textContent = who === 'me' ? '내가 쓴 단어' : '컴퓨터가 쓴 단어';
+    whoEl.className = 'who' + (who === 'me' ? ' me' : '');
+  }
+  function setNext(w) {
+    const s = startsFor(last(w));
+    $('#next').innerHTML = `다음 단어는 ${s.map(x => `<em>${x}</em>`).join(' 또는 ')}(으)로 시작해요`;
+  }
+  const firstRound = () => G.chain.length < 2;
+
+  function playerSay() {
+    if (G.over || G.busy) return;
+    const inp = $('#sayInput');
+    const w = inp.value.trim().replace(/\s+/g, '');
+    if (!w) return;
+    if (![...w].every(isSyl)) return setMsg('완성된 한글로만 적어 주세요.', 'warn');
+    if (w.length < 2) return setMsg('두 글자 이상 단어만 쓸 수 있어요.', 'warn');
+    const prev = G.chain.at(-1);
+    if (prev && !startsFor(last(prev.w)).includes(first(w))) {
+      return setMsg(`'${startsFor(last(prev.w)).join("' 또는 '")}'(으)로 시작해야 해요.`, 'warn');
+    }
+    if (G.used.has(w)) {
+      G.warns++;
+      inp.value = '';
+      if (G.warns >= 3) return endBattle(false, `'${w}'은(는) 이미 나온 단어예요. 세 번째 반복이라 패배예요.`);
+      updateStatus();
+      return setMsg(`⚠️ '${w}'은(는) 이미 나온 단어예요. 경고 ${G.warns}번. 3번째엔 패배해요.`, 'warn');
+    }
+    if (!tierOf.has(w)) return endBattle(false, `'${w}'은(는) 사전에 없는 명사예요.`, w);
+    if (firstRound() && isHanbang(w)) return setMsg(`'${w}'은(는) 한방단어라 첫 라운드엔 쓸 수 없어요.`, 'warn');
+    inp.value = '';
+    commit(w, 'me');
+    $('#hintline').textContent = '';
+    G.shownHints.clear();
+    setMsg('');
+    if (isHanbang(w)) { G.chain.at(-1).hanbang = true; }
+    computerTurn();
+  }
+
+  function commit(w, who) {
+    G.chain.push({ w, who });
+    G.used.add(w);
+    writeWord(w, who);
+    setNext(w);
+    updateStatus();
+  }
+
+  function computerPick(prev) {
+    const fr = firstRound();
+    const all = candidates(last(prev)).filter(w => !G.used.has(w));
+    const inTiers = tiers => all.filter(w => tiers.includes(tierOf.get(w)));
+    let pool = inTiers(G.L.tiers);
+    if (!pool.length) pool = all; // 쉬운 단어가 바닥나면 사전 전체에서 찾기
+    if (!pool.length) return null;
+    const safe = pool.filter(w => !isHanbang(w));
+    const killers = pool.filter(isHanbang);
+    if (G.level === 'easy') {
+      const roomy = safe.filter(w => w.length <= 3 && contCount(last(w)) >= 15);
+      return pickOne(roomy.length ? roomy : safe.length ? safe : pool);
+    }
+    if (G.level === 'normal') {
+      if (!fr && killers.length && Math.random() < 0.3) return pickOne(killers);
+      return pickOne(safe.length ? safe : pool);
+    }
+    if (!fr && killers.length && Math.random() < 0.85) return pickOne(killers);
+    if (!safe.length) return pickOne(pool);
+    // 어려움: 이어갈 단어가 가장 적은 끝말을 노린다
+    let best = null, bestN = Infinity;
+    for (let i = 0; i < 300; i++) {
+      const w = pickOne(safe);
+      const n = candidates(last(w)).filter(x => !G.used.has(x)).length;
+      if (n > 0 && n < bestN) { best = w; bestN = n; }
+    }
+    return best || pickOne(safe);
+  }
+
+  function computerTurn() {
+    G.busy = true;
+    const who = $('#who');
+    setTimeout(() => {
+      if (G.over) return;
+      who.textContent = '컴퓨터가 생각 중';
+      who.className = 'who thinking';
+    }, 750);
+    setTimeout(() => {
+      if (G.over) return;
+      const prev = G.chain.at(-1).w;
+      const w = computerPick(prev);
+      G.busy = false;
+      if (!w) return endBattle(true, `컴퓨터가 '${startsFor(last(prev)).join("/")}'(으)로 시작하는 단어를 찾지 못했어요.`);
+      commit(w, 'cpu');
+      if (isHanbang(w)) G.chain.at(-1).hanbang = true;
+      const left = candidates(last(w)).filter(x => !G.used.has(x)).length;
+      if (left === 0) {
+        setMsg(`한방단어예요! '${startsFor(last(w)).join("/")}'(으)로 시작하는 단어가 사전에 없어요.`, 'bad');
+        setTimeout(() => endBattle(false, `컴퓨터의 '${w}'에 이을 단어가 없어요.`), 1800);
+        G.over = true;
+        updateStatus();
+        return;
+      }
+      $('#sayInput').focus();
+    }, 1500 + rand(900));
+  }
+
+  function useHint() {
+    if (G.hints <= 0 || G.over || G.busy) return;
+    const prev = G.chain.at(-1);
+    let pool = prev ? candidates(last(prev.w)).filter(w => !G.used.has(w)) : [...tierOf.keys()].filter(w => tierOf.get(w) === 1);
+    if (firstRound()) pool = pool.filter(w => !isHanbang(w));
+    const fresh = pool.filter(w => !G.shownHints.has(w));
+    if (fresh.length) pool = fresh;
+    const easy = pool.filter(w => tierOf.get(w) === 1);
+    const mid = pool.filter(w => tierOf.get(w) <= 2);
+    const w = pickOne(easy.length ? easy : mid.length ? mid : pool);
+    if (!w) return setMsg('이 글자로 시작하는 단어가 남아 있지 않아요.', 'warn');
+    G.shownHints.add(w);
+    G.hints--;
+    updateStatus();
+    $('#hintline').textContent = first(w) + ' ' + choseong(w.slice(1)).split('').join(' ');
+    setMsg(`힌트: 첫 글자 '${first(w)}' 뒤에 초성이 ${w.length - 1}개 있어요.`, 'good');
+    $('#sayInput').focus();
+  }
+
+  function showPast() {
+    const ov = document.createElement('div');
+    ov.className = 'overlay';
+    ov.innerHTML = `
+      <div class="row" style="justify-content:space-between">
+        <span class="chalk" style="font-size:40px">지난 단어</span>
+        <button class="btn small" id="closePast">닫기</button>
+      </div>
+      <div class="list">${G.chain.length ? G.chain.map((c, i) => `
+        <div class="entry"><span class="n">${i + 1}</span>
+          <span class="w ${c.who === 'me' ? 'me' : ''}">${c.w}<small>${c.who === 'me' ? '나' : '컴퓨터'}</small></span></div>`).join('')
+        : '<p class="sub">아직 칠판에 적힌 단어가 없어요.</p>'}</div>`;
+    board.appendChild(ov);
+    ov.querySelector('#closePast').onclick = () => { ov.remove(); $('#sayInput')?.focus(); };
+  }
+
+  async function endBattle(win, reason, badWord) {
+    G.over = true;
+    const L = G.L;
+    const mine = G.chain.filter(c => c.who === 'me').length;
+    show(`
+      <div class="result-top">
+        <h1 class="verdict ${win ? 'win' : 'lose'}">${win ? '이겼어요!' : '졌어요'}</h1>
+        <div><div class="label">이은 단어</div><div class="big-num">${G.chain.length}</div></div>
+        <div><div class="label">내가 쓴 단어</div><div class="big-num">${mine}</div></div>
+      </div>
+      <p class="sub">${esc(reason)} · ${L.icon} ${L.name} · 힌트 ${L.hints - G.hints}개 사용</p>
+      <div class="list" id="resList"><p class="sub">뜻풀이를 찾는 중…</p></div>
+      <div class="row">
+        <button class="btn solid" id="again">한 판 더</button>
+        <button class="btn" id="lvl">난이도 바꾸기</button>
+        <button class="btn" id="home">처음으로</button>
+      </div>`);
+    $('#again').onclick = () => startBattle(G.level);
+    $('#lvl').onclick = chooseLevel;
+    $('#home').onclick = menu;
+    const defs = await Promise.all(G.chain.map(c => getDef(c.w)));
+    const list = $('#resList');
+    if (!list) return;
+    list.innerHTML = G.chain.length ? G.chain.map((c, i) => `
+      <div class="entry"><span class="n">${i + 1}</span>
+        <span class="w ${c.who === 'me' ? 'me' : ''}">${c.w}<small>${c.who === 'me' ? '나' : '컴퓨터'}${c.hanbang ? ' · 한방단어' : ''}</small></span>
+        <span class="d">${esc(defs[i] || '')}</span></div>`).join('')
+      + (badWord ? `<div class="entry"><span class="n">✕</span><span class="w me" style="text-decoration:line-through">${esc(badWord)}<small>사전에 없음</small></span></div>` : '')
+      : '<p class="sub">칠판에 적힌 단어가 없어요.</p>';
+  }
+
+  // ---------- 기차 퀴즈 ----------
+  let Q = null;
+  const easyWords = [];
+  const easyByFirst = new Map();
+  const easyByPrevEnd = new Map(); // 다음 글자 → 그 글자로 이어지는 쉬운 단어(앞 칸 후보)
+
+  function makeQuestion(seen) {
+    for (let tries = 0; tries < 400; tries++) {
+      const b = pickOne(easyWords);
+      if (seen.has(b)) continue;
+      const as = (easyByPrevEnd.get(first(b)) || []).filter(a => a !== b);
+      const cs = startsFor(last(b)).flatMap(s => easyByFirst.get(s) || []).filter(c => c !== b);
+      if (!as.length || !cs.length) continue;
+      const a = pickOne(as), c = pickOne(cs.filter(x => x !== a));
+      if (!c) continue;
+      return { a, b, c };
+    }
+    return null;
+  }
+  function answersFor(q) {
+    return candidates(last(q.a)).filter(w => w !== q.a && w !== q.c && startsFor(last(w)).includes(first(q.c)));
+  }
+
+  function startQuiz() {
+    const seen = new Set();
+    const qs = [];
+    while (qs.length < 10) { const q = makeQuestion(seen); if (!q) break; seen.add(q.b); qs.push(q); }
+    Q = { qs, i: 0, results: [] };
+    quizQuestion();
+  }
+
+  function quizQuestion() {
+    const q = Q.qs[Q.i];
+    const startA = startsFor(last(q.a)), endsC = first(q.c);
+    show(`
+      <div class="row" style="justify-content:space-between">
+        <div class="dots">${Q.qs.map((_, i) => `<span class="dot ${Q.results[i] === true ? 'ok' : Q.results[i] === false ? 'no' : i === Q.i ? 'now' : ''}"></span>`).join('')}</div>
+        <span class="label">${Q.i + 1} / ${Q.qs.length} · 맞힌 문제 ${Q.results.filter(Boolean).length}</span>
+      </div>
+      <div class="stage" style="gap:30px">
+        <div class="train">
+          <div class="car">${q.a}</div><div class="link"></div>
+          <div class="car hole" id="hole">?</div><div class="link"></div>
+          <div class="car">${q.c}</div>
+        </div>
+        <p class="rule">빈칸은 ${startA.map(s => `<em>${s}</em>`).join(' 또는 ')}(으)로 시작하고,<br>끝 글자로 <em>${endsC}</em>${dueumFrom(endsC)}에 이어지는 단어예요.</p>
+      </div>
+      <div class="msg" id="msg"></div>
+      <div id="defs" class="sub" style="font-size:14px"></div>
+      <form class="say" id="say" autocomplete="off">
+        <input class="input" id="sayInput" placeholder="빈칸에 들어갈 단어" maxlength="20" aria-label="빈칸 단어">
+        <button class="btn solid" type="submit" id="okBtn">확인</button>
+      </form>
+      <div class="row">
+        <button class="btn small" id="passBtn">모르겠어요</button>
+        <button class="btn small" id="quitBtn">그만하기</button>
+      </div>`);
+    $('#say').onsubmit = e => { e.preventDefault(); Q.answered ? nextQ() : quizCheck(false); };
+    $('#passBtn').onclick = () => Q.answered ? null : quizCheck(true);
+    $('#quitBtn').onclick = menu;
+    Q.answered = false;
+    $('#sayInput').focus();
+  }
+  // 끝 글자 → 다음 칸: '역사'라면 '력'으로 끝나도 이어진다는 안내
+  function dueumFrom(syl) {
+    const froms = [];
+    const c = syl.charCodeAt(0) - 0xAC00, jung = Math.floor((c % 588) / 28), jong = c % 28, cho = Math.floor(c / 588);
+    if (cho === 11 && Y_VOWELS.has(jung)) froms.push(String.fromCharCode(0xAC00 + 5 * 588 + jung * 28 + jong), String.fromCharCode(0xAC00 + 2 * 588 + jung * 28 + jong));
+    if (cho === 2 && !Y_VOWELS.has(jung)) froms.push(String.fromCharCode(0xAC00 + 5 * 588 + jung * 28 + jong));
+    return froms.length ? `(또는 ${froms.join('·')})` : '';
+  }
+
+  async function quizCheck(pass) {
+    const q = Q.qs[Q.i];
+    const inp = $('#sayInput');
+    const w = inp.value.trim().replace(/\s+/g, '');
+    if (!pass) {
+      if (!w) return;
+      if (![...w].every(isSyl) || w.length < 2) return setMsg('두 글자 이상 한글 단어를 적어 주세요.', 'warn');
+    }
+    const answers = answersFor(q);
+    const ok = !pass && answers.includes(w);
+    if (!pass && !ok) {
+      let why = '사전에 없는 명사예요.';
+      if (tierOf.has(w)) {
+        if (!startsFor(last(q.a)).includes(first(w))) why = `'${startsFor(last(q.a)).join("/")}'(으)로 시작해야 해요.`;
+        else if (!startsFor(last(w)).includes(first(q.c))) why = `끝 글자 '${last(w)}'은(는) '${q.c}'에 이어지지 않아요.`;
+        else why = '앞뒤 칸과 같은 단어는 쓸 수 없어요.';
+      }
+      if (!Q.tried) { Q.tried = true; inp.select(); return setMsg(`${why} 한 번 더 해 볼까요?`, 'warn'); }
+      setMsg(why, 'bad');
+    }
+    Q.tried = false;
+    Q.answered = true;
+    Q.results[Q.i] = ok;
+    const shown = ok ? w : q.b;
+    const hole = $('#hole');
+    hole.textContent = shown;
+    hole.classList.add(ok ? 'ok' : 'no');
+    const others = answers.filter(x => x !== shown);
+    const easyOthers = others.filter(x => tierOf.get(x) === 1).slice(0, 4);
+    if (ok) setMsg(`정답! ${others.length ? `다른 정답도 ${others.length}개 더 있어요${easyOthers.length ? ': ' + easyOthers.join(', ') : ''}.` : ''}`, 'good');
+    else if (pass) setMsg(`정답 예시는 '${q.b}'예요.${easyOthers.length ? ' 이것도 돼요: ' + easyOthers.join(', ') : ''}`, 'bad');
+    else setMsg(`${$('#msg').textContent} 정답 예시는 '${q.b}'예요.`, 'bad');
+    inp.value = '';
+    inp.placeholder = 'Enter를 누르면 다음 문제';
+    $('#okBtn').textContent = Q.i + 1 < Q.qs.length ? '다음 문제' : '결과 보기';
+    $('#passBtn').disabled = true;
+    const [da, ds, dc] = await Promise.all([getDef(q.a), getDef(shown), getDef(q.c)]);
+    const box = $('#defs');
+    if (box) box.innerHTML = [[q.a, da], [shown, ds], [q.c, dc]].map(([x, d]) => `<div><b>${x}</b> · ${esc(d)}</div>`).join('');
+    inp.focus();
+  }
+
+  function nextQ() {
+    Q.i++;
+    if (Q.i < Q.qs.length) return quizQuestion();
+    const score = Q.results.filter(Boolean).length;
+    show(`
+      <div class="result-top">
+        <h1 class="verdict ${score >= 7 ? 'win' : 'lose'}">${score >= 9 ? '기관사 합격!' : score >= 7 ? '잘했어요!' : '다음엔 더 잘할 거예요'}</h1>
+        <div><div class="label">맞힌 문제</div><div class="big-num">${score} / ${Q.qs.length}</div></div>
+      </div>
+      <div class="list">${Q.qs.map((q, i) => `
+        <div class="entry"><span class="n">${Q.results[i] ? '○' : '✕'}</span>
+          <span class="w ${Q.results[i] ? 'me' : ''}" style="font-size:26px">${q.a} → ${q.b} → ${q.c}</span></div>`).join('')}</div>
+      <div class="row">
+        <button class="btn solid" id="again">새 기차 10문제</button>
+        <button class="btn" id="home">처음으로</button>
+      </div>`);
+    $('#again').onclick = startQuiz;
+    $('#home').onclick = menu;
+  }
+
+  // ---------- 시작 ----------
+  fetch('words.json').then(r => r.json()).then(data => {
+    for (const t of ['1', '2', '3']) {
+      for (const w of (data[t] || '').split(' ')) {
+        if (!w) continue;
+        tierOf.set(w, +t);
+        const f = first(w);
+        if (!byFirst.has(f)) byFirst.set(f, []);
+        byFirst.get(f).push(w);
+      }
+    }
+    for (const w of (data['1'] || '').split(' ')) {
+      if (w.length > 3) continue;
+      easyWords.push(w);
+      const f = first(w);
+      if (!easyByFirst.has(f)) easyByFirst.set(f, []);
+      easyByFirst.get(f).push(w);
+      for (const s of startsFor(last(w))) {
+        if (!easyByPrevEnd.has(s)) easyByPrevEnd.set(s, []);
+        easyByPrevEnd.get(s).push(w);
+      }
+    }
+    menu();
+  }).catch(() => {
+    document.getElementById('loadText').textContent = '단어장을 불러오지 못했어요. 페이지를 새로고침해 주세요.';
+  });
+})();
+</script>

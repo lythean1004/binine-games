@@ -1,0 +1,533 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<title>중력 뒤집기 러너</title>
+<style>
+  :root { --cyan:#2aa8ff; --pink:#ff3fa4; --bg:#04050d; }
+  * { box-sizing: border-box; }
+  html, body { margin:0; height:100%; background:var(--bg); color:#dff3ff;
+    font-family: "Segoe UI", "Malgun Gothic", sans-serif; overflow:hidden;
+    -webkit-user-select:none; user-select:none; touch-action:none; }
+  #wrap { position:absolute; inset:0; display:flex; align-items:center; justify-content:center; }
+  #stage { position:relative; width:960px; height:540px; transform-origin:center; }
+  canvas { display:block; width:100%; height:100%; }
+  .overlay { position:absolute; inset:0; display:none; flex-direction:column; align-items:center;
+    justify-content:center; gap:14px; background:rgba(2,4,12,.78); text-align:center; }
+  .overlay.show { display:flex; }
+  h1 { margin:0; font-size:54px; letter-spacing:4px; color:#fff;
+    text-shadow:0 0 12px var(--cyan), 0 0 30px var(--cyan); }
+  h2 { margin:0; font-size:38px; color:#fff; text-shadow:0 0 14px var(--cyan); }
+  p { margin:0; color:#9fc6e6; font-size:17px; line-height:1.6; }
+  button { font:inherit; font-size:20px; color:#fff; background:#061426; border:2px solid var(--cyan);
+    padding:10px 26px; border-radius:6px; cursor:pointer; box-shadow:0 0 10px rgba(42,168,255,.5); min-width:180px; }
+  button:hover { background:#0b2742; }
+  button:disabled { opacity:.35; cursor:default; box-shadow:none; }
+  .row { display:flex; gap:14px; flex-wrap:wrap; justify-content:center; }
+  .stagebtn { min-width:150px; display:flex; flex-direction:column; gap:4px; }
+  .stagebtn small { font-size:13px; color:#8fb7d6; }
+  .key { display:inline-block; border:1px solid #4d7ea6; border-radius:4px; padding:0 7px; margin:0 2px; font-size:14px; color:#fff; }
+  #rotate { position:fixed; inset:0; display:none; align-items:center; justify-content:center; background:var(--bg);
+    color:#fff; font-size:20px; text-align:center; padding:20px; z-index:9; }
+  @media (orientation: portrait) and (max-width: 700px) { #rotate { display:flex; } }
+</style>
+</head>
+<body>
+<div id="rotate">📱 화면을 가로로 돌려 주세요</div>
+<div id="wrap">
+  <div id="stage">
+    <canvas id="c" width="960" height="540"></canvas>
+
+    <div class="overlay show" id="title">
+      <h1>중력 뒤집기 러너</h1>
+      <p>버튼 하나로 중력을 뒤집어 가시를 피하고 끝까지 달려라!</p>
+      <div class="row" id="stageList"></div>
+      <p style="font-size:15px">
+        뒤집기: <span class="key">Space</span> <span class="key">↑</span> <span class="key">W</span> 또는 화면 터치 ·
+        일시정지 <span class="key">P</span> · 소리 <span class="key">M</span>
+      </p>
+    </div>
+
+    <div class="overlay" id="pause">
+      <h2>일시정지</h2>
+      <div class="row">
+        <button id="btnResume">계속하기</button>
+        <button id="btnQuit">스테이지 선택</button>
+      </div>
+    </div>
+
+    <div class="overlay" id="clear">
+      <h2 id="clearTitle">스테이지 클리어!</h2>
+      <p id="clearInfo"></p>
+      <div class="row">
+        <button id="btnNext">다음 스테이지</button>
+        <button id="btnMenu">스테이지 선택</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+(() => {
+'use strict';
+// ===== 기본 값 =====
+const W = 960, H = 540;
+const CEIL = 70, FLOOR = 470;     // 천장 아래면, 바닥 윗면
+const S = 34;                     // 큐브 크기
+const PX = 220;                   // 화면에서 큐브의 x 위치
+const G = 2600, VMAX = 1100, FLIP_V = 180;
+const TOOTH = 36, SPIKE_H = 30;
+
+// ===== 스테이지 만들기 도우미 =====
+// F: 바닥 가시(위로), C: 천장 가시(아래로), up/down: 블록 위·아래에 붙은 가시
+const F = (x, n) => ({ x, n, dir: 'up', base: FLOOR });
+const C = (x, n) => ({ x, n, dir: 'down', base: CEIL });
+const up = (x, n, base) => ({ x, n, dir: 'up', base });
+const down = (x, n, base) => ({ x, n, dir: 'down', base });
+const padF = (x, w = 70) => ({ x, w, side: 'floor' });
+const padC = (x, w = 70) => ({ x, w, side: 'ceil' });
+// 천장에서 내려온 블록(아랫면 y=bottom) → 바닥 쪽 좁은 통로
+const roofBlock = (x, w, bottom) => ({ x, y: CEIL - 40, w, h: bottom - CEIL + 40 });
+// 바닥에서 솟은 블록(윗면 y=top) → 천장 쪽 좁은 통로
+const floorBlock = (x, w, top) => ({ x, y: top, w, h: FLOOR - top + 40 });
+
+const LEVELS = [
+  {
+    name: '1. 접속', speed: 330, length: 5000,
+    spikes: [
+      F(700, 2), C(1300, 3), F(1900, 2), C(2300, 2),
+      F(3000, 6), C(3500, 2),
+      F(4100, 2), down(4300, 2, 350),
+    ],
+    pads: [padF(2880)],
+    blocks: [roofBlock(3900, 600, 350)],
+  },
+  {
+    name: '2. 가속', speed: 370, length: 6100,
+    spikes: [
+      F(600, 3), C(1000, 3), F(1400, 3),
+      F(2050, 3),
+      C(2900, 2), up(3130, 2, 190), C(3360, 2),
+      F(4650, 3),
+      C(5100, 3), F(5500, 3),
+    ],
+    pads: [padC(1750), padF(3900), padC(4250)],
+    blocks: [floorBlock(2700, 800, 190)],
+  },
+  {
+    name: '3. 코어', speed: 410, length: 7100,
+    spikes: [
+      F(600, 2), C(930, 2), F(1260, 2), C(1590, 2),
+      F(2150, 2), down(2330, 2, 360), F(2510, 2), down(2690, 2, 360),
+      F(3800, 3),
+      C(4450, 2), up(4630, 2, 180), C(4810, 2), up(4990, 2, 180),
+      C(5500, 3), F(6550, 4),
+    ],
+    pads: [padF(3200), padC(3500), padF(5900), padC(6200)],
+    blocks: [roofBlock(2000, 900, 360), floorBlock(4300, 900, 180)],
+  },
+  // 4번부터는 "초" 단위로 설계 (x = 초 × 속도)
+  stage('4. 방화벽', 430, 13.5, [
+    ['F', 1.4, 2], ['C', 2.3, 3], ['F', 3.1, 3], ['pF', 4.0], ['F', 4.2, 6], ['C', 5.0, 2],
+    ['roof', 6.0, 2.2, 350], ['F', 6.4, 2], ['down', 6.85, 2, 350], ['F', 7.3, 2], ['down', 7.75, 2, 350],
+    ['F', 9.0, 3], ['C', 9.9, 3], ['F', 10.7, 3], ['pC', 11.5], ['F', 12.2, 3],
+  ]),
+  stage('5. 미로', 450, 12.5, [
+    ['F', 0.9, 2],
+    ['floor', 1.5, 2.5, 180], ['C', 1.9, 2], ['up', 2.35, 2, 180], ['C', 2.8, 2], ['up', 3.25, 2, 180],
+    ['C', 4.3, 3],
+    ['roof', 5.0, 2.5, 360], ['F', 5.4, 2], ['down', 5.85, 2, 360], ['F', 6.3, 2], ['down', 6.75, 2, 360],
+    ['F', 8.2, 3], ['pC', 9.0], ['pF', 9.8], ['C', 10.6, 3], ['F', 11.4, 4],
+  ]),
+  stage('6. 과부하', 470, 13, [
+    ['F', 1.2, 2], ['C', 1.95, 2], ['F', 2.7, 2], ['C', 3.45, 2], ['F', 4.2, 2], ['C', 4.95, 2],
+    ['pF', 5.7], ['pC', 6.4], ['pF', 7.1], ['C', 7.9, 3],
+    ['roof', 8.6, 2.0, 360], ['F', 8.9, 2], ['down', 9.3, 2, 360], ['F', 9.7, 2], ['down', 10.1, 2, 360],
+    ['F', 11.3, 3], ['C', 12.1, 3],
+  ]),
+  stage('7. 역류', 490, 12.8, [
+    ['F', 1.3, 3], ['C', 2.1, 2], ['pF', 2.9], ['C', 4.0, 2], ['F', 4.8, 2], ['pC', 5.6], ['F', 6.3, 3],
+    ['floor', 7.0, 2.4, 180], ['C', 7.3, 2], ['up', 7.7, 2, 180], ['C', 8.1, 2], ['up', 8.5, 2, 180], ['C', 8.9, 2],
+    ['pF', 10.2], ['C', 11.0, 3], ['F', 11.8, 4],
+  ]),
+  stage('8. 최종 코어', 510, 15, [
+    ['F', 1.2, 2], ['C', 1.9, 2], ['F', 2.6, 2], ['C', 3.3, 2],
+    ['roof', 4.0, 2.2, 360], ['F', 4.3, 2], ['down', 4.68, 2, 360], ['F', 5.06, 2], ['down', 5.44, 2, 360], ['F', 5.82, 2],
+    ['floor', 6.9, 2.2, 180], ['C', 7.2, 2], ['up', 7.58, 2, 180], ['C', 7.96, 2], ['up', 8.34, 2, 180], ['C', 8.72, 2],
+    ['pF', 9.8], ['pC', 10.5], ['F', 11.2, 3], ['C', 11.9, 3], ['F', 12.6, 3], ['pC', 13.3], ['F', 14.0, 4],
+  ]),
+];
+
+// 초 단위 목록 → 스테이지 데이터
+function stage(name, speed, endSec, list) {
+  const X = t => Math.round(t * speed);
+  const L = { name, speed, length: X(endSec), spikes: [], pads: [], blocks: [] };
+  for (const [k, t, a, b] of list) {
+    if (k === 'F') L.spikes.push(F(X(t), a));
+    else if (k === 'C') L.spikes.push(C(X(t), a));
+    else if (k === 'up') L.spikes.push(up(X(t), a, b));
+    else if (k === 'down') L.spikes.push(down(X(t), a, b));
+    else if (k === 'pF') L.pads.push(padF(X(t)));
+    else if (k === 'pC') L.pads.push(padC(X(t)));
+    else if (k === 'roof') L.blocks.push(roofBlock(X(t), X(a), b));
+    else if (k === 'floor') L.blocks.push(floorBlock(X(t), X(a), b));
+  }
+  return L;
+}
+
+// ===== 물리 (게임과 검사기가 같이 씀) =====
+function newPlayer() {
+  return { x: 0, y: FLOOR - S, vy: 0, dir: 1, grounded: true, padMask: 0 };
+}
+function hitsBlockSide(p, b) {
+  return p.x < b.x + b.w && p.x + S > b.x && p.y < b.y + b.h - 2 && p.y + S > b.y + 2;
+}
+function canFlip(p) { return p.grounded; }
+function doFlip(p) { p.dir *= -1; p.vy = FLIP_V * p.dir; p.grounded = false; }
+
+// 한 번 진행. 'dead' / 'clear' / 'pad' / null 을 돌려줌
+function step(p, L, dt) {
+  p.x += L.speed * dt;
+  for (const b of L.blocks) if (hitsBlockSide(p, b)) return 'dead';
+
+  const prevY = p.y;
+  p.vy = Math.max(-VMAX, Math.min(VMAX, p.vy + G * p.dir * dt));
+  p.y += p.vy * dt;
+  p.grounded = false;
+  let surface = null;
+  if (p.y + S >= FLOOR) { p.y = FLOOR - S; if (p.vy > 0) p.vy = 0; if (p.dir > 0) { p.grounded = true; surface = 'floor'; } }
+  if (p.y <= CEIL) { p.y = CEIL; if (p.vy < 0) p.vy = 0; if (p.dir < 0) { p.grounded = true; surface = 'ceil'; } }
+  for (const b of L.blocks) {
+    if (!(p.x < b.x + b.w && p.x + S > b.x)) continue;
+    if (!(p.y < b.y + b.h && p.y + S > b.y)) continue;
+    if (prevY + S <= b.y + 1) { p.y = b.y - S; p.vy = 0; if (p.dir > 0) p.grounded = true; }
+    else if (prevY >= b.y + b.h - 1) { p.y = b.y + b.h; p.vy = 0; if (p.dir < 0) p.grounded = true; }
+    else return 'dead';
+  }
+
+  // 가시
+  const px1 = p.x + 3, px2 = p.x + S - 3, py1 = p.y + 3, py2 = p.y + S - 3;
+  for (const s of L.spikes) {
+    if (px2 < s.x || px1 > s.x + s.n * TOOTH) continue;
+    for (let i = 0; i < s.n; i++) {
+      const tx = s.x + i * TOOTH;
+      const hx1 = tx + 10, hx2 = tx + TOOTH - 10;
+      const hy1 = s.dir === 'up' ? s.base - 19 : s.base;
+      const hy2 = s.dir === 'up' ? s.base : s.base + 19;
+      if (px1 < hx2 && px2 > hx1 && py1 < hy2 && py2 > hy1) return 'dead';
+    }
+  }
+
+  // 중력 패드
+  if (surface) {
+    for (let i = 0; i < L.pads.length; i++) {
+      const pd = L.pads[i];
+      if (pd.side !== surface || (p.padMask >> i) & 1) continue;
+      if (p.x + S > pd.x && p.x < pd.x + pd.w) { p.padMask |= 1 << i; doFlip(p); return 'pad'; }
+    }
+  }
+  if (p.x >= L.length) return 'clear';
+  return null;
+}
+
+// ===== 저장 =====
+const SAVE_KEY = 'gravity-runner-v1';
+let save = { unlocked: 1, best: {} };
+try { const s = JSON.parse(localStorage.getItem(SAVE_KEY)); if (s) save = Object.assign(save, s); } catch (e) {}
+function writeSave() { try { localStorage.setItem(SAVE_KEY, JSON.stringify(save)); } catch (e) {} }
+
+// ===== 소리 =====
+let ac = null, muted = false;
+function audio() { if (!ac) { try { ac = new (window.AudioContext || window.webkitAudioContext)(); } catch (e) {} } if (ac && ac.state === 'suspended') ac.resume(); }
+function tone(f1, f2, dur, type = 'square', vol = 0.08, delay = 0) {
+  if (muted || !ac) return;
+  const t = ac.currentTime + delay, o = ac.createOscillator(), g = ac.createGain();
+  o.type = type; o.frequency.setValueAtTime(f1, t); o.frequency.exponentialRampToValueAtTime(f2, t + dur);
+  g.gain.setValueAtTime(vol, t); g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+  o.connect(g).connect(ac.destination); o.start(t); o.stop(t + dur + 0.02);
+}
+const sfx = {
+  flip(dir) { dir < 0 ? tone(300, 700, 0.09) : tone(700, 300, 0.09); },
+  pad() { tone(500, 1200, 0.15, 'sawtooth', 0.06); },
+  dead() { tone(220, 40, 0.35, 'sawtooth', 0.12); },
+  clear() { [523, 659, 784, 1047].forEach((f, i) => tone(f, f, 0.16, 'square', 0.07, i * 0.1)); },
+};
+
+// ===== 게임 상태 =====
+const cvs = document.getElementById('c'), ctx = cvs.getContext('2d');
+const $ = id => document.getElementById(id);
+let state = 'title';   // title / play / dead / pause / clear
+let lv = 0, L = LEVELS[0], p = newPlayer();
+let attempts = 1, deadTimer = 0, buffer = 0, coyote = 0;
+let angle = 0, angleTarget = 0;
+let particles = [], trail = [], flash = 0, time = 0;
+
+function startLevel(i) {
+  lv = i; L = LEVELS[i]; attempts = 1; respawn();
+  showOverlay(null); state = 'play';
+}
+function respawn() {
+  p = newPlayer(); angle = angleTarget = 0; buffer = coyote = 0;
+  particles = []; trail = [];
+}
+function die() {
+  state = 'dead'; deadTimer = 0.7; sfx.dead(); flash = 0.25;
+  const cx = PX + S / 2, cy = p.y + S / 2;
+  for (let i = 0; i < 40; i++) {
+    const a = Math.random() * Math.PI * 2, v = 120 + Math.random() * 380;
+    particles.push({ x: cx, y: cy, vx: Math.cos(a) * v, vy: Math.sin(a) * v, life: 0.6 + Math.random() * 0.4, s: 3 + Math.random() * 6 });
+  }
+}
+function clearLevel() {
+  state = 'clear'; sfx.clear();
+  const key = String(lv);
+  const isBest = !save.best[key] || attempts < save.best[key];
+  if (isBest) save.best[key] = attempts;
+  save.unlocked = Math.max(save.unlocked, Math.min(LEVELS.length, lv + 2));
+  writeSave();
+  const last = lv === LEVELS.length - 1;
+  $('clearTitle').textContent = last ? '모든 스테이지 클리어! 🎉' : '스테이지 클리어!';
+  $('clearInfo').textContent = `${L.name} — 시도 ${attempts}번${isBest ? ' (최고 기록!)' : ` (최고 ${save.best[key]}번)`}`;
+  $('btnNext').style.display = last ? 'none' : '';
+  showOverlay('clear');
+}
+
+// ===== 입력 =====
+function press() {
+  audio();
+  if (state === 'play') buffer = 0.12;
+}
+const FLIP_KEYS = new Set(['Space', 'ArrowUp', 'ArrowDown', 'KeyW', 'KeyS']);
+window.addEventListener('keydown', e => {
+  if (FLIP_KEYS.has(e.code) || e.key === 'ㅈ' || e.key === 'ㄴ') {
+    e.preventDefault(); if (!e.repeat) press(); return;
+  }
+  if (e.code === 'KeyP' || e.code === 'Escape' || e.key === 'ㅔ') togglePause();
+  if (e.code === 'KeyM' || e.key === 'ㅡ') muted = !muted;
+  if (e.code === 'Enter' && state === 'clear') { lv < LEVELS.length - 1 ? startLevel(lv + 1) : toMenu(); }
+});
+cvs.addEventListener('pointerdown', e => { e.preventDefault(); press(); });
+
+function togglePause() {
+  if (state === 'play') { state = 'pause'; showOverlay('pause'); }
+  else if (state === 'pause') { state = 'play'; showOverlay(null); }
+}
+function showOverlay(id) {
+  for (const o of ['title', 'pause', 'clear']) $(o).classList.toggle('show', o === id);
+}
+function toMenu() { state = 'title'; buildStageList(); showOverlay('title'); }
+function buildStageList() {
+  const box = $('stageList'); box.innerHTML = '';
+  LEVELS.forEach((lvl, i) => {
+    const b = document.createElement('button'); b.className = 'stagebtn';
+    const locked = i + 1 > save.unlocked;
+    const best = save.best[String(i)];
+    b.innerHTML = `${locked ? '🔒 ' : ''}${lvl.name}<small>${best ? `최고 기록: 시도 ${best}번` : (locked ? '잠김' : '아직 못 깸')}</small>`;
+    b.disabled = locked;
+    b.onclick = () => { audio(); startLevel(i); };
+    box.appendChild(b);
+  });
+}
+$('btnResume').onclick = togglePause;
+$('btnQuit').onclick = toMenu;
+$('btnMenu').onclick = toMenu;
+$('btnNext').onclick = () => startLevel(lv + 1);
+
+// ===== 업데이트 =====
+const DT = 1 / 240;
+let acc = 0, last = performance.now();
+function update(dt) {
+  time += dt;
+  if (flash > 0) flash -= dt;
+  for (const q of particles) { q.x += q.vx * dt; q.y += q.vy * dt; q.vx *= 0.97; q.vy *= 0.97; q.life -= dt; }
+  particles = particles.filter(q => q.life > 0);
+
+  if (state === 'dead') {
+    deadTimer -= dt;
+    if (deadTimer <= 0) { attempts++; respawn(); state = 'play'; }
+    return;
+  }
+  if (state !== 'play') return;
+
+  if (buffer > 0) buffer -= dt;
+  if (p.grounded) coyote = 0.06; else if (coyote > 0) coyote -= dt;
+  if (buffer > 0 && (p.grounded || coyote > 0)) {
+    doFlip(p); buffer = 0; coyote = 0; angleTarget += Math.PI; sfx.flip(p.dir);
+  }
+  const r = step(p, L, dt);
+  if (r === 'dead') return die();
+  if (r === 'pad') { angleTarget += Math.PI; sfx.pad(); flash = 0.08; }
+  if (r === 'clear') return clearLevel();
+
+  // 회전: 0.22초 안에 목표 각도로
+  const diff = angleTarget - angle;
+  angle += Math.sign(diff) * Math.min(Math.abs(diff), Math.PI / 0.22 * dt);
+  if (Math.random() < dt * 60) trail.push({ x: p.x, y: p.y, a: angle, life: 0.25 });
+}
+
+// ===== 그리기 =====
+function glowLine(x1, y1, x2, y2, color, w = 2) {
+  ctx.strokeStyle = color; ctx.lineWidth = w; ctx.shadowColor = color; ctx.shadowBlur = 12;
+  ctx.beginPath(); ctx.moveTo(x1, y1); ctx.lineTo(x2, y2); ctx.stroke(); ctx.shadowBlur = 0;
+}
+function draw() {
+  const cam = p.x - PX;
+  ctx.fillStyle = '#04050d'; ctx.fillRect(0, 0, W, H);
+
+  // 뒤 격자 (천천히)
+  ctx.strokeStyle = 'rgba(42,120,255,0.10)'; ctx.lineWidth = 1;
+  const gs = 48, off = -(cam * 0.4) % gs;
+  ctx.beginPath();
+  for (let x = off; x < W; x += gs) { ctx.moveTo(x, CEIL); ctx.lineTo(x, FLOOR); }
+  for (let y = CEIL; y < FLOOR; y += gs) { ctx.moveTo(0, y); ctx.lineTo(W, y); }
+  ctx.stroke();
+
+  // 바닥·천장
+  ctx.fillStyle = '#081324';
+  ctx.fillRect(0, 0, W, CEIL); ctx.fillRect(0, FLOOR, W, H - FLOOR);
+  ctx.strokeStyle = 'rgba(42,168,255,0.25)';
+  ctx.beginPath();
+  const off2 = -cam % 60;
+  for (let x = off2; x < W; x += 60) { ctx.moveTo(x, FLOOR); ctx.lineTo(x - 30, H); ctx.moveTo(x, CEIL); ctx.lineTo(x - 30, 0); }
+  ctx.stroke();
+  glowLine(0, FLOOR, W, FLOOR, '#2aa8ff', 3);
+  glowLine(0, CEIL, W, CEIL, '#2aa8ff', 3);
+
+  // 블록
+  for (const b of L.blocks) {
+    const x = b.x - cam; if (x > W || x + b.w < 0) continue;
+    ctx.fillStyle = '#0a1830'; ctx.fillRect(x, b.y, b.w, b.h);
+    ctx.strokeStyle = '#7b5cff'; ctx.lineWidth = 2; ctx.shadowColor = '#7b5cff'; ctx.shadowBlur = 12;
+    ctx.strokeRect(x + 1, b.y + 1, b.w - 2, b.h - 2); ctx.shadowBlur = 0;
+    ctx.strokeStyle = 'rgba(123,92,255,0.18)'; ctx.beginPath();
+    for (let gx = x + 30; gx < x + b.w; gx += 30) { ctx.moveTo(gx, b.y); ctx.lineTo(gx, b.y + b.h); }
+    ctx.stroke();
+  }
+
+  // 패드
+  for (let i = 0; i < L.pads.length; i++) {
+    const pd = L.pads[i], x = pd.x - cam; if (x > W || x + pd.w < 0) continue;
+    const used = (p.padMask >> i) & 1;
+    const col = used ? 'rgba(255,230,80,0.35)' : '#ffe650';
+    const y = pd.side === 'floor' ? FLOOR - 6 : CEIL;
+    ctx.fillStyle = col; ctx.shadowColor = '#ffe650'; ctx.shadowBlur = used ? 0 : 16;
+    ctx.fillRect(x, y, pd.w, 6); ctx.shadowBlur = 0;
+    // 화살표
+    const d = pd.side === 'floor' ? -1 : 1, bob = Math.sin(time * 8) * 4;
+    ctx.strokeStyle = col; ctx.lineWidth = 3; ctx.beginPath();
+    for (let k = 0; k < 2; k++) {
+      const ay = (pd.side === 'floor' ? FLOOR - 18 : CEIL + 18) + d * (k * 12 + bob);
+      ctx.moveTo(x + pd.w / 2 - 10, ay - d * 8); ctx.lineTo(x + pd.w / 2, ay); ctx.lineTo(x + pd.w / 2 + 10, ay - d * 8);
+    }
+    ctx.stroke();
+  }
+
+  // 가시
+  ctx.fillStyle = '#1a0614'; ctx.strokeStyle = '#ff3fa4'; ctx.lineWidth = 2;
+  ctx.shadowColor = '#ff3fa4'; ctx.shadowBlur = 10;
+  for (const s of L.spikes) {
+    const sx = s.x - cam; if (sx > W || sx + s.n * TOOTH < 0) continue;
+    for (let i = 0; i < s.n; i++) {
+      const tx = sx + i * TOOTH, tip = s.dir === 'up' ? s.base - SPIKE_H : s.base + SPIKE_H;
+      ctx.beginPath(); ctx.moveTo(tx + 2, s.base); ctx.lineTo(tx + TOOTH / 2, tip); ctx.lineTo(tx + TOOTH - 2, s.base); ctx.closePath();
+      ctx.fill(); ctx.stroke();
+    }
+  }
+  ctx.shadowBlur = 0;
+
+  // 결승선
+  const fx = L.length - cam;
+  if (fx < W + 40) {
+    for (let y = CEIL; y < FLOOR; y += 20) {
+      ctx.fillStyle = ((y - CEIL) / 20) % 2 ? '#2aa8ff' : '#ffffff';
+      ctx.fillRect(fx, y, 10, 20);
+      ctx.fillStyle = ((y - CEIL) / 20) % 2 ? '#ffffff' : '#2aa8ff';
+      ctx.fillRect(fx + 10, y, 10, 20);
+    }
+    glowLine(fx + 10, CEIL, fx + 10, FLOOR, 'rgba(42,168,255,0.6)', 1);
+  }
+
+  // 잔상
+  for (const t of trail) {
+    t.life -= 1 / 60;
+    ctx.globalAlpha = Math.max(0, t.life) * 1.2;
+    drawCube(t.x - cam, t.y, t.a, true);
+  }
+  ctx.globalAlpha = 1;
+  trail = trail.filter(t => t.life > 0);
+
+  // 큐브
+  if (state !== 'dead') drawCube(PX, p.y, angle, false);
+
+  // 파편
+  for (const q of particles) {
+    ctx.globalAlpha = Math.min(1, q.life * 2); ctx.fillStyle = Math.random() < 0.5 ? '#2aa8ff' : '#000';
+    ctx.strokeStyle = '#2aa8ff'; ctx.lineWidth = 1;
+    ctx.fillRect(q.x, q.y, q.s, q.s); ctx.strokeRect(q.x, q.y, q.s, q.s);
+  }
+  ctx.globalAlpha = 1;
+
+  if (flash > 0) { ctx.fillStyle = `rgba(255,255,255,${flash})`; ctx.fillRect(0, 0, W, H); }
+
+  // HUD
+  if (state !== 'title') {
+    const prog = Math.min(1, Math.max(0, p.x / L.length));
+    ctx.fillStyle = 'rgba(255,255,255,0.12)'; ctx.fillRect(W / 2 - 160, 22, 320, 8);
+    ctx.fillStyle = '#2aa8ff'; ctx.shadowColor = '#2aa8ff'; ctx.shadowBlur = 8;
+    ctx.fillRect(W / 2 - 160, 22, 320 * prog, 8); ctx.shadowBlur = 0;
+    ctx.fillStyle = '#dff3ff'; ctx.font = '16px "Segoe UI", "Malgun Gothic", sans-serif';
+    ctx.textAlign = 'left'; ctx.fillText(L.name, 18, 32);
+    ctx.textAlign = 'right'; ctx.fillText(`시도 ${attempts}   ${Math.floor(prog * 100)}%   ${muted ? '🔇' : '🔊'}`, W - 18, 32);
+    ctx.textAlign = 'center';
+    if (attempts === 1 && p.x < 400 && state === 'play') {
+      ctx.fillStyle = 'rgba(223,243,255,0.8)'; ctx.font = '20px "Segoe UI", "Malgun Gothic", sans-serif';
+      ctx.fillText('Space · 터치 = 중력 뒤집기', W / 2, H / 2);
+    }
+  }
+}
+function drawCube(x, y, a, ghost) {
+  ctx.save();
+  ctx.translate(x + S / 2, y + S / 2); ctx.rotate(a);
+  ctx.fillStyle = '#000';
+  ctx.fillRect(-S / 2, -S / 2, S, S);
+  ctx.strokeStyle = '#2aa8ff'; ctx.lineWidth = 4;
+  if (!ghost) { ctx.shadowColor = '#2aa8ff'; ctx.shadowBlur = 16; }
+  ctx.strokeRect(-S / 2 + 2, -S / 2 + 2, S - 4, S - 4);
+  ctx.shadowBlur = 0;
+  if (!ghost) {
+    // 안쪽 무늬: 회전이 보이도록 위쪽에 눈(띠), 가운데 작은 코어
+    ctx.fillStyle = '#2aa8ff';
+    ctx.fillRect(-9, -9, 18, 4);
+    ctx.strokeStyle = 'rgba(42,168,255,0.6)'; ctx.lineWidth = 2;
+    ctx.strokeRect(-5, 1, 10, 10);
+  }
+  ctx.restore();
+}
+
+// ===== 루프 =====
+function loop(now) {
+  let frame = Math.min(0.05, (now - last) / 1000); last = now;
+  acc += frame;
+  while (acc >= DT) { update(DT); acc -= DT; }
+  draw();
+  requestAnimationFrame(loop);
+}
+
+// ===== 화면 맞추기 =====
+function fit() {
+  const sc = Math.min(window.innerWidth / W, window.innerHeight / H);
+  $('stage').style.transform = `scale(${sc})`;
+}
+window.addEventListener('resize', fit); fit();
+window.addEventListener('blur', () => { if (state === 'play') togglePause(); });
+
+buildStageList();
+requestAnimationFrame(loop);
+
+// 검사용 (스테이지를 깰 수 있는지 확인할 때 씀)
+window.__GR = { LEVELS, step, newPlayer, canFlip, doFlip, S, CEIL, FLOOR };
+})();
+</script>
+</body>
+</html>

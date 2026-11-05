@@ -1,0 +1,128 @@
+{
+  "_설명": "빈이네 작품 목록. 작품을 추가하려면 여기 한 덩어리를 넣고 `python tools/sync.py <slug>` 를 실행하세요. source 경로는 이 폴더(binine-games) 기준 상대 경로입니다.",
+  "team": "빈이네",
+  "works": [
+    {
+      "slug": "coin-jump",
+      "title": "코인 점프",
+      "emoji": "🪙",
+      "color": "#f5b301",
+      "category": "game",
+      "genre": "점프맵",
+      "summary": "숲·얼음 동굴·화산 9개 스테이지를 뛰어넘으며 코인을 모아요. 모은 코인으로 상점에서 색과 모자를 사요.",
+      "source": "../coin-jump",
+      "files": ["index.html"],
+      "inject": ["shared/local-records.js"]
+    },
+    {
+      "slug": "sky-fighter",
+      "title": "스카이 파이터",
+      "emoji": "✈️",
+      "color": "#3b82f6",
+      "category": "game",
+      "genre": "슈팅",
+      "summary": "하늘을 나는 세로 슈팅 게임. 3개 스테이지 끝에서 열기구, 폭격기, 비행선 보스와 싸워요.",
+      "source": "../sky-fighter",
+      "files": ["index.html"],
+      "inject": ["shared/local-records.js"]
+    },
+    {
+      "slug": "word-chain",
+      "title": "칠판 끝말잇기",
+      "emoji": "🧑‍🏫",
+      "color": "#2f6b4f",
+      "category": "game",
+      "genre": "낱말",
+      "summary": "표준국어대사전 낱말로 컴퓨터와 끝말잇기를 해요. 빈칸을 채우는 기차 퀴즈도 있어요.",
+      "source": "../끝말잇기",
+      "files": ["index.html", "words.json", "defs"]
+    },
+    {
+      "slug": "garden",
+      "title": "한 붓 정원사",
+      "emoji": "🌷",
+      "color": "#e8618c",
+      "category": "game",
+      "genre": "퍼즐",
+      "summary": "우물에서 헛간까지 선을 한 번에 그어 모든 꽃에 물을 줘요. 정원 12개가 기다려요.",
+      "source": "../../spark project/한붓정원사",
+      "files": ["index.html"]
+    },
+    {
+      "slug": "gravity-runner",
+      "title": "중력 뒤집기 러너",
+      "emoji": "🔄",
+      "color": "#7c3aed",
+      "category": "game",
+      "genre": "러너",
+      "summary": "버튼 한 번에 중력이 뒤집혀요. 천장과 바닥을 오가며 가시를 피해 8개 스테이지를 달려요.",
+      "source": "../../spark project/중력러너",
+      "files": ["index.html"]
+    },
+    {
+      "slug": "air-hockey",
+      "title": "에어하키",
+      "emoji": "🏒",
+      "color": "#0ea5e9",
+      "category": "game",
+      "genre": "스포츠",
+      "summary": "얼음 링크에서 컴퓨터와 겨뤄요. 마우스나 손가락으로 말렛을 움직여 퍽을 쳐요.",
+      "source": "../../spark project/에어하키",
+      "files": ["index.html"]
+    },
+    {
+      "slug": "escape-lab",
+      "title": "비밀 실험실 탈출",
+      "emoji": "🧪",
+      "color": "#16a34a",
+      "category": "game",
+      "genre": "방탈출",
+      "summary": "독가스가 퍼지는 박사님의 실험실. 15분 안에 암호와 수수께끼를 풀고 빠져나가요.",
+      "source": "../../spark project/방탈출",
+      "files": ["index.html"]
+    },
+    {
+      "slug": "star-road",
+      "title": "별게임",
+      "emoji": "⭐",
+      "color": "#f97316",
+      "category": "game",
+      "genre": "러너",
+      "summary": "자동차로 도로를 달리며 화살표 키로 별을 먹고 장애물을 피해요.",
+      "source": "../../spark project/별게임",
+      "files": ["index.html"]
+    },
+    {
+      "slug": "braille",
+      "title": "훈맹정음 점자 변환기",
+      "emoji": "⠓",
+      "color": "#475569",
+      "category": "learn",
+      "genre": "배움",
+      "summary": "한글을 한국 점자(훈맹정음)로 바꾸고, 퀴즈로 점자 읽는 법을 익혀요. 2026 한글날 코딩 프로젝트 출품작.",
+      "source": "../../훈맹정음_바이브코딩",
+      "files": [{ "from": "훈맹정음.html", "to": "index.html" }]
+    },
+    {
+      "slug": "red-pen",
+      "title": "세종대왕의 빨간펜",
+      "emoji": "🖍️",
+      "color": "#dc2626",
+      "category": "learn",
+      "genre": "배움",
+      "summary": "맞춤법 문제를 풀고 받아쓰기를 하면 세종대왕이 빨간펜으로 채점해 줘요.",
+      "source": "../../훈맹정음_바이브코딩/세종대왕의_빨간펜/제출용",
+      "files": [{ "from": "세종대왕의_빨간펜.html", "to": "index.html" }]
+    },
+    {
+      "slug": "newcar-news",
+      "title": "신차 출시 소식",
+      "emoji": "🚗",
+      "color": "#64748b",
+      "category": "etc",
+      "genre": "정보",
+      "summary": "국내 신차 기사를 차별로 모아 브랜드, 가격, 연료로 찾아볼 수 있는 페이지예요.",
+      "url": "https://lythean1004.github.io/newcar-news/"
+    }
+  ]
+}

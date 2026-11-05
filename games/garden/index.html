@@ -1,0 +1,693 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>한 붓 정원사</title>
+<style>
+  :root {
+    --bg: #eef6e4; --panel: #ffffff; --ink: #2f3b26; --sub: #6b7a5e;
+    --grass: #b9dc8c; --grass2: #a9d27a; --wet: #8a6a4a; --wet2: #7d5f41;
+    --rock: #9aa0a6; --water: #3fa3e8; --accent: #3a8d3a; --line: #d6e6c3;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; background: var(--bg); color: var(--ink);
+    font-family: "Pretendard", "Apple SD Gothic Neo", "Malgun Gothic", system-ui, sans-serif;
+    display: flex; flex-direction: column; align-items: center;
+    min-height: 100vh; padding: 16px; user-select: none; -webkit-user-select: none;
+  }
+  h1 { margin: 4px 0 2px; font-size: 26px; }
+  .tag { color: var(--sub); font-size: 14px; margin-bottom: 12px; text-align: center; }
+  .bar {
+    width: 100%; max-width: 520px; display: flex; justify-content: space-between;
+    align-items: center; gap: 8px; margin-bottom: 8px; flex-wrap: wrap;
+  }
+  .stat { font-size: 15px; background: var(--panel); border-radius: 10px; padding: 6px 10px; }
+  .wrap { position: relative; width: 100%; max-width: 520px; }
+  canvas { display: block; width: 100%; border-radius: 14px; touch-action: none;
+    box-shadow: 0 4px 14px rgba(60,90,30,.18); background: var(--grass); }
+  .msg { min-height: 24px; margin: 10px 0 6px; font-size: 15px; text-align: center; }
+  .btns { display: flex; gap: 8px; flex-wrap: wrap; justify-content: center; }
+  button {
+    font: inherit; font-size: 15px; border: 0; border-radius: 10px; padding: 9px 14px;
+    background: var(--panel); color: var(--ink); cursor: pointer;
+    box-shadow: 0 2px 6px rgba(60,90,30,.15);
+  }
+  button.main { background: var(--accent); color: #fff; }
+  button:disabled { opacity: .4; cursor: default; }
+  .view { width: 100%; display: flex; flex-direction: column; align-items: center; }
+  .view[hidden] { display: none; }
+  button.stat { padding: 6px 10px; font-weight: 700; }
+  /* 스테이지 선택 */
+  .sel-head { width: 100%; max-width: 520px; display: flex; justify-content: center; gap: 8px; margin: 4px 0 12px; }
+  .stages { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; width: 100%; max-width: 520px; }
+  @media (min-width: 460px) { .stages { grid-template-columns: repeat(4, 1fr); } }
+  .stage { position: relative; padding: 12px 4px 10px; border-radius: 14px; text-align: center; line-height: 1.35; }
+  .stage .num { font-size: 26px; font-weight: 800; color: var(--accent); }
+  .stage .size { font-size: 12px; color: var(--sub); }
+  .stage .st { font-size: 15px; color: #f2b800; letter-spacing: 1px; }
+  .stage .st .off { color: #ddd; }
+  .stage .medal { position: absolute; top: 4px; right: 6px; font-size: 18px; }
+  .stage .new { position: absolute; top: 4px; left: 6px; font-size: 14px; }
+  .stage.cur { outline: 3px solid var(--accent); }
+  .stage.clear3 { background: #fff8d6; }
+  .sel-tip { font-size: 13px; color: var(--sub); margin-top: 12px; text-align: center; }
+  .overlay {
+    position: absolute; inset: 0; display: none; align-items: center; justify-content: center;
+    background: rgba(238,246,228,.82); border-radius: 14px;
+  }
+  .overlay.show { display: flex; }
+  .card { background: var(--panel); border-radius: 16px; padding: 20px 24px; text-align: center;
+    box-shadow: 0 6px 20px rgba(60,90,30,.25); max-width: 86%; }
+  .card .stars { font-size: 40px; color: #f2b800; letter-spacing: 4px; margin: 6px 0; }
+  .card .stars .off { color: #ddd; }
+  .card p { margin: 6px 0 14px; color: var(--sub); font-size: 14px; }
+  .help { max-width: 520px; font-size: 13px; color: var(--sub); margin-top: 14px; line-height: 1.6; }
+</style>
+</head>
+<body>
+  <h1>🌷 한 붓 정원사</h1>
+  <div class="tag">우물 🪣에서 헛간 🛖까지 선을 끊지 않고 이어서 꽃에 물을 주세요</div>
+
+  <!-- 스테이지 선택 화면 -->
+  <div class="view" id="selectView">
+    <div class="sel-head">
+      <span class="stat" id="selStars">★ 0/36</span>
+      <span class="stat" id="selMedals">🏅 0/12</span>
+    </div>
+    <div class="stages" id="stages"></div>
+    <div class="sel-tip">정원을 골라 보세요 · 🌉 표시가 있는 정원에는 다리가 있어요</div>
+  </div>
+
+  <!-- 게임 화면 -->
+  <div class="view" id="gameView" hidden>
+  <div class="bar">
+    <button class="stat" id="lvName" title="스테이지 선택으로">🗺 정원 1</button>
+    <span class="stat" id="flowerStat">🥀 0/0</span>
+    <span class="stat" id="cellStat">💧 0/0칸</span>
+    <span class="stat" id="medalStat" title="힌트 없이 별 3개로 깬 정원">🏅 0/0</span>
+  </div>
+
+  <div class="wrap">
+    <canvas id="cv"></canvas>
+    <div class="overlay" id="overlay">
+      <div class="card">
+        <div id="ovTitle" style="font-size:20px;font-weight:700">정원 완성!</div>
+        <div class="stars" id="ovStars"></div>
+        <p id="ovText"></p>
+        <div id="ovMedal" style="font-size:15px;font-weight:700;color:#b07a00;margin:-6px 0 12px"></div>
+        <div class="btns">
+          <button id="ovSelect">🗺 스테이지</button>
+          <button id="ovRetry">다시 하기</button>
+          <button class="main" id="ovNext">다음 정원 ▶</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="msg" id="msg">우물 🪣을 누른 채로 끌어 보세요</div>
+  <div class="btns">
+    <button id="undoBtn">↩ 한 칸 취소</button>
+    <button id="resetBtn">🔄 처음부터</button>
+    <button id="hintBtn">💡 힌트</button>
+  </div>
+
+  <div class="help">
+    <b>규칙</b><br>
+    · 위·아래·왼쪽·오른쪽으로만 이어져요. 같은 칸은 두 번 못 지나가요.<br>
+    · 바위 🪨는 지나갈 수 없어요. 헛간 🛖에 들어가면 선이 끝나요.<br>
+    · 다리 🌉(연못 위 십자 다리)는 가로로 한 번, 세로로 한 번 건널 수 있어요. 다리 위에서는 방향을 못 꺾어요.<br>
+    · 꽃을 다 적시고 헛간에 도착하면 ★, 땅의 80%를 적시면 ★★, 모든 칸을 적시면 ★★★!<br>
+    · 막히면 💡 힌트: 지금 길에서 이어 갈 다음 3칸을 보여 줘요. 이미 막힌 길이면 되감을 칸을 알려 줘요.<br>
+    · 힌트 없이 별 3개로 깨면 🏅 배지를 받아요.
+  </div>
+  </div>
+
+<script>
+(() => {
+  // ---------- 스테이지 설정 ----------
+  const SPECS = [
+    { w: 4, h: 4, rocks: 0, flowers: 3, bridges: 0 },
+    { w: 4, h: 4, rocks: 1, flowers: 4, bridges: 0 },
+    { w: 5, h: 5, rocks: 0, flowers: 4, bridges: 0 },
+    { w: 5, h: 5, rocks: 1, flowers: 4, bridges: 1 },
+    { w: 5, h: 5, rocks: 2, flowers: 5, bridges: 0 },
+    { w: 5, h: 5, rocks: 2, flowers: 5, bridges: 1 },
+    { w: 6, h: 5, rocks: 2, flowers: 6, bridges: 1 },
+    { w: 6, h: 6, rocks: 3, flowers: 7, bridges: 1 },
+    { w: 6, h: 6, rocks: 3, flowers: 7, bridges: 2 },
+    { w: 7, h: 6, rocks: 4, flowers: 8, bridges: 2 },
+    { w: 7, h: 7, rocks: 4, flowers: 9, bridges: 2 },
+    { w: 7, h: 7, rocks: 5, flowers: 10, bridges: 3 },
+  ];
+
+  function rng(seed) {
+    return () => {
+      seed |= 0; seed = seed + 0x6D2B79F5 | 0;
+      let t = Math.imul(seed ^ seed >>> 15, 1 | seed);
+      t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t;
+      return ((t ^ t >>> 14) >>> 0) / 4294967296;
+    };
+  }
+  function shuffle(a, r) {
+    for (let i = a.length - 1; i > 0; i--) { const j = Math.floor(r() * (i + 1)); [a[i], a[j]] = [a[j], a[i]]; }
+    return a;
+  }
+
+  // 모든 빈칸을 지나는 길(해밀턴 경로)을 먼저 만들고, 그 위에 우물·헛간·꽃을 놓는다
+  function buildLevel(idx) {
+    const s = SPECS[idx];
+    const r = rng(1000 + idx * 7919);
+    const { w, h } = s;
+    for (let attempt = 0; attempt < 400; attempt++) {
+      const rocks = new Set();
+      while (rocks.size < s.rocks) rocks.add(Math.floor(r() * w * h));
+      // 다리: 가장자리 X, 옆(상하좌우)에 바위·다리 X
+      const bridges = new Set();
+      const spots = [];
+      for (let y = 1; y < h - 1; y++) for (let x = 1; x < w - 1; x++) spots.push(y * w + x);
+      for (const c of shuffle(spots, r)) {
+        if (bridges.size >= s.bridges) break;
+        const around = [c, c - 1, c + 1, c - w, c + w];
+        if (around.some(n => rocks.has(n) || bridges.has(n))) continue;
+        bridges.add(c);
+      }
+      if (bridges.size < s.bridges) continue;
+      const path = findPath(w, h, rocks, bridges, r);
+      if (!path) continue;
+      const well = path[0], barn = path[path.length - 1];
+      // 꽃이 너무 몰리지 않게 섞은 뒤 앞에서부터 고른다 (다리 위는 제외)
+      const inner = shuffle(path.slice(2, -2).filter(c => !bridges.has(c)), r);
+      const flowers = new Set(inner.slice(0, s.flowers));
+      return { w, h, rocks, bridges, well, barn, flowers, total: path.length, solution: path };
+    }
+    throw new Error("판을 만들지 못했어요");
+  }
+
+  // 모든 칸(다리는 가로·세로 두 번)을 지나는 길 찾기
+  function findPath(w, h, rocks, bridges, r) {
+    const N = w * h;
+    const L = N - rocks.size + bridges.size; // 다리는 2번 센다
+    const DIRS = [[1, 0], [-1, 0], [0, 1], [0, -1]];
+    const seen = new Uint8Array(N), slot = new Uint8Array(N); // slot: 1=가로, 2=세로
+    const inb = (x, y) => x >= 0 && y >= 0 && x < w && y < h;
+    const moves = c => {
+      const x = c % w, y = (c / w) | 0, out = [];
+      for (const [dx, dy] of DIRS) {
+        if (!inb(x + dx, y + dy)) continue;
+        const n = (y + dy) * w + x + dx;
+        if (rocks.has(n)) continue;
+        if (bridges.has(n)) {
+          const bit = dx ? 1 : 2;
+          if (slot[n] & bit || !inb(x + 2 * dx, y + 2 * dy)) continue;
+          const m = (y + 2 * dy) * w + x + 2 * dx;
+          if (rocks.has(m) || bridges.has(m) || seen[m]) continue;
+          out.push({ via: n, bit, to: m });
+        } else if (!seen[n]) out.push({ to: n });
+      }
+      return out;
+    };
+    const open = i => !rocks.has(i) && (bridges.has(i) ? slot[i] !== 3 : !seen[i]);
+    const connected = head => {
+      // 아직 쓸 수 있는 칸이 머리에서 모두 이어져 있는지 (느슨한 검사)
+      let need = 0; for (let i = 0; i < N; i++) if (open(i)) need++;
+      const st = [head], vis = new Uint8Array(N); vis[head] = 1; let cnt = 0;
+      while (st.length) {
+        const c = st.pop(), x = c % w, y = (c / w) | 0;
+        for (const [dx, dy] of DIRS) {
+          if (!inb(x + dx, y + dy)) continue;
+          const n = (y + dy) * w + x + dx;
+          if (!vis[n] && open(n)) { vis[n] = 1; cnt++; st.push(n); }
+        }
+      }
+      return cnt === need;
+    };
+    let budget = 0;
+    const path = [];
+    const dfs = c => {
+      if (--budget < 0) return false;
+      if (path.length === L) return true;
+      if (!connected(c)) return false;
+      const next = shuffle(moves(c), r).map(m => {
+        seen[m.to] = 1; if (m.via) slot[m.via] |= m.bit;
+        const deg = moves(m.to).length;
+        seen[m.to] = 0; if (m.via) slot[m.via] &= ~m.bit;
+        return [m, deg];
+      }).sort((a, b) => a[1] - b[1]);
+      for (const [m] of next) {
+        if (m.via) { slot[m.via] |= m.bit; path.push(m.via); }
+        seen[m.to] = 1; path.push(m.to);
+        if (dfs(m.to)) return true;
+        seen[m.to] = 0; path.pop();
+        if (m.via) { slot[m.via] &= ~m.bit; path.pop(); }
+      }
+      return false;
+    };
+    const starts = [];
+    for (let i = 0; i < N; i++) if (!rocks.has(i) && !bridges.has(i)) starts.push(i);
+    for (let t = 0; t < 6; t++) {
+      const start = starts[Math.floor(r() * starts.length)];
+      budget = 60000; seen.fill(0); slot.fill(0);
+      path.length = 0; path.push(start); seen[start] = 1;
+      if (dfs(start)) return path.slice();
+    }
+    return null;
+  }
+
+  // ---------- 상태 ----------
+  const cv = document.getElementById("cv"), ctx = cv.getContext("2d");
+  const $ = id => document.getElementById(id);
+  let level, lvIdx = 0, path = [], visited, bridgeUse, dragging = false, finished = false;
+  const levelCache = [];
+  let best = [], medal = [];
+  try { best = JSON.parse(localStorage.getItem("hanbut-best") || "[]"); } catch (e) {}
+  try { medal = JSON.parse(localStorage.getItem("hanbut-medal") || "[]"); } catch (e) {}
+  const saveBest = () => {
+    try {
+      localStorage.setItem("hanbut-best", JSON.stringify(best));
+      localStorage.setItem("hanbut-medal", JSON.stringify(medal));
+    } catch (e) {}
+  };
+
+  function load(idx) {
+    lvIdx = idx;
+    level = levelCache[idx] || (levelCache[idx] = buildLevel(idx));
+    visited = new Uint8Array(level.w * level.h);
+    bridgeUse = new Uint8Array(level.w * level.h);
+    path = [level.well]; visited[level.well] = 1;
+    finished = false; dragging = false;
+    hint = null; hintsUsed = 0; $("hintBtn").textContent = "💡 힌트";
+    $("overlay").classList.remove("show");
+    $("lvName").textContent = `🗺 정원 ${idx + 1}`;
+    $("selectView").hidden = true; $("gameView").hidden = false;
+    const firstBridge = SPECS.findIndex(s => s.bridges > 0);
+    say(idx === firstBridge ? "🌉 새 장치, 다리! 가로로 한 번, 세로로 한 번 건널 수 있어요"
+      : level.bridges.size ? "🌉 다리는 곧게만 건널 수 있어요. 두 방향 다 건너 보세요"
+      : "우물 🪣을 누른 채로 끌어 보세요");
+    resize(); renderLevels(); update();
+  }
+
+  const xy = i => [i % level.w, (i / level.w) | 0];
+  const adj = (a, b) => { const [ax, ay] = xy(a), [bx, by] = xy(b); return Math.abs(ax - bx) + Math.abs(ay - by) === 1; };
+  const head = () => path[path.length - 1];
+  const canEnter = c => c >= 0 && !level.rocks.has(c) && !level.bridges.has(c) && !visited[c];
+
+  function extend(c) {
+    const hd = head();
+    if (finished || c < 0 || !adj(hd, c) || level.rocks.has(c)) return false;
+    if (level.bridges.has(c)) {
+      // 다리는 곧게 건너서 건너편 칸에 내린다
+      const [hx, hy] = xy(hd), [cx, cy] = xy(c), dx = cx - hx, dy = cy - hy, bit = dx ? 1 : 2;
+      if (bridgeUse[c] & bit) { say("🌉 이 방향으로는 이미 건넜어요"); return false; }
+      const tx = cx + dx, ty = cy + dy;
+      if (tx < 0 || ty < 0 || tx >= level.w || ty >= level.h) return false;
+      const m = ty * level.w + tx;
+      if (!canEnter(m)) { say("🌉 다리 건너편이 막혀 있어요"); return false; }
+      bridgeUse[c] |= bit; path.push(c, m); visited[m] = 1;
+      if (m === level.barn) arrive();
+      return true;
+    }
+    if (!canEnter(c)) return false;
+    path.push(c); visited[c] = 1;
+    if (c === level.barn) arrive();
+    return true;
+  }
+  function pop() {
+    if (path.length <= 1) return false;
+    const c = path.pop(); visited[c] = 0;
+    const b = head();
+    if (level.bridges.has(b)) { // 다리 위에서는 멈출 수 없으니 다리째 되돌린다
+      const a = path[path.length - 2];
+      bridgeUse[b] &= ~(xy(a)[1] === xy(b)[1] ? 1 : 2);
+      path.pop();
+    }
+    if (finished) { finished = false; say("한 걸음 물러났어요"); }
+    return true;
+  }
+
+  // ---------- 힌트 ----------
+  // 지금 그은 길에서 이어서 모든 칸을 적시고 헛간에 도착하는 길을 찾는다
+  function solveFrom(p) {
+    const { w, h, rocks, bridges, barn, total } = level, N = w * h;
+    const DIRS = [[1, 0], [-1, 0], [0, 1], [0, -1]];
+    const seen = new Uint8Array(N), slot = new Uint8Array(N);
+    p.forEach((c, k) => {
+      if (bridges.has(c)) slot[c] |= xy(p[k - 1])[1] === xy(c)[1] ? 1 : 2; else seen[c] = 1;
+    });
+    const out = p.slice();
+    if (out[out.length - 1] === barn) return null;
+    const inb = (x, y) => x >= 0 && y >= 0 && x < w && y < h;
+    const moves = c => {
+      const x = c % w, y = (c / w) | 0, res = [];
+      for (const [dx, dy] of DIRS) {
+        if (!inb(x + dx, y + dy)) continue;
+        const n = (y + dy) * w + x + dx;
+        if (rocks.has(n)) continue;
+        let m = n, via = -1, bit = 0;
+        if (bridges.has(n)) {
+          bit = dx ? 1 : 2;
+          if (slot[n] & bit || !inb(x + 2 * dx, y + 2 * dy)) continue;
+          via = n; m = (y + 2 * dy) * w + x + 2 * dx;
+          if (rocks.has(m) || bridges.has(m)) continue;
+        }
+        if (seen[m]) continue;
+        // 헛간은 맨 마지막 칸으로만 들어간다
+        if (m === barn && out.length + (via >= 0 ? 2 : 1) !== total) continue;
+        res.push({ via, bit, to: m });
+      }
+      return res;
+    };
+    const open = i => !rocks.has(i) && (bridges.has(i) ? slot[i] !== 3 : !seen[i]);
+    const connected = head => {
+      let need = 0; for (let i = 0; i < N; i++) if (open(i)) need++;
+      const st = [head], vis = new Uint8Array(N); vis[head] = 1; let cnt = 0;
+      while (st.length) {
+        const c = st.pop(), x = c % w, y = (c / w) | 0;
+        for (const [dx, dy] of DIRS) {
+          if (!inb(x + dx, y + dy)) continue;
+          const n = (y + dy) * w + x + dx;
+          if (!vis[n] && open(n)) { vis[n] = 1; cnt++; st.push(n); }
+        }
+      }
+      return cnt === need;
+    };
+    let budget = 200000;
+    const dfs = c => {
+      if (out.length === total) return c === barn;
+      if (--budget < 0 || !connected(c)) return false;
+      const next = moves(c).map(m => {
+        seen[m.to] = 1; if (m.via >= 0) slot[m.via] |= m.bit;
+        const deg = moves(m.to).length;
+        seen[m.to] = 0; if (m.via >= 0) slot[m.via] &= ~m.bit;
+        return [m, deg];
+      }).sort((a, b) => a[1] - b[1]);
+      for (const [m] of next) {
+        if (m.via >= 0) { slot[m.via] |= m.bit; out.push(m.via); }
+        seen[m.to] = 1; out.push(m.to);
+        if (dfs(m.to)) return true;
+        seen[m.to] = 0; out.pop();
+        if (m.via >= 0) { slot[m.via] &= ~m.bit; out.pop(); }
+      }
+      return false;
+    };
+    return dfs(out[out.length - 1]) ? out : null;
+  }
+
+  let hint = null, hintsUsed = 0, hintRaf = 0;
+  const pathKey = () => path.join(",");
+
+  function showHint() {
+    if (!level || $("overlay").classList.contains("show")) return;
+    if (finished && watered() === level.flowers.size) return; // 이미 완성
+    hintsUsed++;
+    $("hintBtn").textContent = `💡 힌트 (${hintsUsed})`;
+    const sol = level.solution;
+    let full = null;
+    if (path.every((c, k) => sol[k] === c)) full = sol;     // 아직 정답 길 위
+    else full = solveFrom(path);                            // 다른 길이어도 이어서 될 수 있으면
+    if (full) {
+      const cells = full.slice(path.length, path.length + 3);
+      // 다리 위에서 끊기지 않게 건너편까지 보여 준다
+      if (cells.length && level.bridges.has(cells[cells.length - 1])) cells.push(full[path.length + cells.length]);
+      hint = { kind: "next", cells, key: pathKey(), t0: performance.now() };
+      say("💡 반짝이는 길을 따라가 보세요 (모든 칸을 적시는 길이에요)");
+    } else {
+      // 이 길로는 별 3개가 안 됨 → 정답 길과 갈라진 곳까지 되감기 안내
+      let k = 0; while (k < path.length && path[k] === sol[k]) k++;
+      let back = path[k - 1];
+      hint = { kind: "back", cells: [back], key: pathKey(), t0: performance.now() };
+      say("💡 이 길로는 모든 칸을 적실 수 없어요. 반짝이는 칸을 눌러 거기까지 되감아 보세요");
+    }
+    animateHint();
+  }
+
+  function animateHint() {
+    cancelAnimationFrame(hintRaf);
+    const tick = () => {
+      if (!hint) return draw();
+      if (hint.key !== pathKey() || performance.now() - hint.t0 > 6000) { hint = null; return draw(); }
+      draw(); hintRaf = requestAnimationFrame(tick);
+    };
+    tick();
+  }
+
+  function drawHint() {
+    if (!hint || hint.key !== pathKey()) return;
+    const pulse = 0.55 + 0.45 * Math.sin((performance.now() - hint.t0) / 180);
+    const ctr = c => { const [x, y] = xy(c); return [(x + .5) * cell, (y + .5) * cell]; };
+    ctx.save();
+    if (hint.kind === "next") {
+      const pts = [head(), ...hint.cells].map(ctr);
+      ctx.setLineDash([cell * 0.12, cell * 0.12]); ctx.lineDashOffset = -(performance.now() / 30);
+      ctx.lineCap = "round"; ctx.lineWidth = cell * 0.1;
+      ctx.strokeStyle = `rgba(255,200,0,${0.5 + 0.5 * pulse})`;
+      ctx.beginPath(); pts.forEach(([x, y], k) => k ? ctx.lineTo(x, y) : ctx.moveTo(x, y)); ctx.stroke();
+      ctx.setLineDash([]);
+      let n = 0;
+      hint.cells.forEach(c => {
+        if (level.bridges.has(c)) return;
+        let [x, y] = ctr(c); n++;
+        // 꽃·헛간을 가리지 않게 번호는 칸 왼쪽 위로
+        if (level.flowers.has(c) || c === level.barn) { x -= cell * 0.3; y -= cell * 0.3; }
+        ctx.beginPath(); ctx.arc(x, y, cell * 0.17, 0, Math.PI * 2);
+        ctx.fillStyle = `rgba(255,214,40,${0.75 + 0.25 * pulse})`; ctx.fill();
+        ctx.fillStyle = "#5a4200"; ctx.font = `bold ${cell * 0.2}px sans-serif`;
+        ctx.textAlign = "center"; ctx.textBaseline = "middle"; ctx.fillText(n, x, y + 1);
+      });
+    } else {
+      const [x, y] = ctr(hint.cells[0]);
+      ctx.beginPath(); ctx.arc(x, y, cell * (0.3 + 0.12 * pulse), 0, Math.PI * 2);
+      ctx.lineWidth = cell * 0.08; ctx.strokeStyle = `rgba(255,200,0,${0.6 + 0.4 * pulse})`; ctx.stroke();
+    }
+    ctx.restore();
+  }
+
+  function watered() { let n = 0; for (const f of level.flowers) if (visited[f]) n++; return n; }
+
+  function arrive() {
+    const wf = watered();
+    if (wf < level.flowers.size) {
+      finished = true;
+      say(`🛖 헛간에 왔지만 꽃 ${level.flowers.size - wf}송이가 아직 목말라요. 되돌아가서 다른 길을 찾아보세요`);
+      return;
+    }
+    finished = true; dragging = false;
+    const ratio = path.length / level.total;
+    const stars = ratio >= 1 ? 3 : ratio >= 0.8 ? 2 : 1;
+    // 🏅 힌트 없이 별 3개
+    const gotMedal = stars === 3 && hintsUsed === 0, newMedal = gotMedal && !medal[lvIdx];
+    if (gotMedal) medal[lvIdx] = 1;
+    if (!best[lvIdx] || stars > best[lvIdx] || newMedal) { best[lvIdx] = Math.max(best[lvIdx] || 0, stars); saveBest(); }
+    $("ovMedal").textContent = gotMedal ? (newMedal ? "🏅 힌트 없이 완벽! 배지를 받았어요" : "🏅 힌트 없이 완벽!")
+      : stars === 3 ? "힌트 없이 다시 깨면 🏅 배지!" : "";
+    $("ovStars").innerHTML = [1, 2, 3].map(i => i <= stars ? "★" : '<span class="off">★</span>').join("");
+    $("ovTitle").textContent = stars === 3 ? "완벽한 정원! 🌈" : "정원 완성! 🌷";
+    $("ovText").textContent = stars === 3
+      ? "빈 땅 하나 없이 모두 적셨어요!"
+      : `땅 ${path.length}/${level.total}칸을 적셨어요. 모든 칸을 지나면 별 3개!`;
+    if (hintsUsed) $("ovText").textContent += ` (힌트 ${hintsUsed}번)`;
+    $("ovNext").style.display = lvIdx < SPECS.length - 1 ? "" : "none";
+    setTimeout(() => $("overlay").classList.add("show"), 250);
+    renderLevels();
+  }
+
+  function say(t) { $("msg").textContent = t; }
+
+  function update() {
+    const wf = watered();
+    $("flowerStat").textContent = `${wf === level.flowers.size ? "🌷" : "🥀"} ${wf}/${level.flowers.size}`;
+    $("cellStat").textContent = `💧 ${path.length}/${level.total}칸`;
+    $("undoBtn").disabled = path.length <= 1;
+    draw();
+  }
+
+  // ---------- 그리기 ----------
+  let cell = 60, dpr = 1;
+  function resize() {
+    const wpx = Math.min(cv.parentElement.clientWidth, 520);
+    cell = wpx / level.w; dpr = window.devicePixelRatio || 1;
+    cv.width = Math.round(wpx * dpr); cv.height = Math.round(cell * level.h * dpr);
+    cv.style.height = (cell * level.h) + "px";
+    draw();
+  }
+
+  function draw() {
+    if (!level) return;
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    const { w, h } = level;
+    for (let i = 0; i < w * h; i++) {
+      const [x, y] = xy(i), px = x * cell, py = y * cell;
+      const chk = (x + y) % 2;
+      ctx.fillStyle = level.rocks.has(i) ? (chk ? "#c9cfc0" : "#c2c8b8")
+        : level.bridges.has(i) ? "#7cc4e8"
+        : visited[i] ? (chk ? "#9a7b57" : "#8f714f") : (chk ? "#b9dc8c" : "#addb7c");
+      ctx.fillRect(px, py, cell, cell);
+      if (level.bridges.has(i)) drawBridge(i, px, py);
+    }
+    // 물길
+    if (path.length > 1) {
+      ctx.lineCap = "round"; ctx.lineJoin = "round";
+      const ctr = c => { const [x, y] = xy(c); return [(x + .5) * cell, (y + .5) * cell]; };
+      const stroke = (pts) => {
+        const trace = () => { ctx.beginPath(); pts.forEach((c, k) => { const [cx, cy] = ctr(c); k ? ctx.lineTo(cx, cy) : ctx.moveTo(cx, cy); }); };
+        trace(); ctx.strokeStyle = "rgba(20,80,140,.35)"; ctx.lineWidth = cell * 0.34; ctx.stroke();
+        trace(); ctx.strokeStyle = "#3fa3e8"; ctx.lineWidth = cell * 0.24; ctx.stroke();
+        trace(); ctx.strokeStyle = "rgba(255,255,255,.45)"; ctx.lineWidth = cell * 0.07; ctx.stroke();
+      };
+      stroke(path);
+      // 다리를 두 번째로 건넌 물길은 위로 지나가게 다시 그린다
+      path.forEach((c, k) => {
+        if (k > 0 && k < path.length - 1 && level.bridges.has(c) && path.indexOf(c) !== k) {
+          const [ax, ay] = ctr(path[k - 1]), [bx, by] = ctr(path[k + 1]);
+          ctx.save(); ctx.beginPath(); ctx.moveTo(ax, ay); ctx.lineTo(bx, by);
+          ctx.strokeStyle = "rgba(0,0,0,.25)"; ctx.lineWidth = cell * 0.42; ctx.lineCap = "butt"; ctx.stroke();
+          ctx.restore();
+          stroke([path[k - 1], c, path[k + 1]]);
+        }
+      });
+    }
+    // 물건들
+    ctx.textAlign = "center"; ctx.textBaseline = "middle";
+    ctx.font = `${cell * 0.56}px "Segoe UI Emoji","Apple Color Emoji","Noto Color Emoji",sans-serif`;
+    for (let i = 0; i < w * h; i++) {
+      const [x, y] = xy(i), cx = (x + .5) * cell, cy = (y + .53) * cell;
+      let e = null;
+      if (level.rocks.has(i)) e = "🪨";
+      else if (i === level.well) e = "🪣";
+      else if (i === level.barn) e = "🛖";
+      else if (level.flowers.has(i)) e = visited[i] ? "🌷" : "🥀";
+      if (e) ctx.fillText(e, cx, cy);
+    }
+    drawHint();
+    // 선 머리
+    if (!finished || head() !== level.barn) {
+      const [x, y] = xy(head());
+      ctx.beginPath(); ctx.arc((x + .5) * cell, (y + .5) * cell, cell * 0.16, 0, Math.PI * 2);
+      ctx.fillStyle = "#fff"; ctx.fill(); ctx.lineWidth = 3; ctx.strokeStyle = "#3fa3e8"; ctx.stroke();
+    }
+  }
+
+  function drawBridge(i, px, py) {
+    // 연못 위 십자 나무다리. 이미 건넌 방향은 어둡게
+    const u = bridgeUse[i], t = cell * 0.36, m = cell * 0.04;
+    const plank = (used, horiz) => {
+      ctx.fillStyle = used ? "#9c7246" : "#d8a96c";
+      if (horiz) ctx.fillRect(px + m, py + (cell - t) / 2, cell - 2 * m, t);
+      else ctx.fillRect(px + (cell - t) / 2, py + m, t, cell - 2 * m);
+      ctx.strokeStyle = "rgba(90,60,30,.55)"; ctx.lineWidth = 1;
+      for (let k = 1; k < 5; k++) {
+        ctx.beginPath();
+        if (horiz) { const x = px + m + (cell - 2 * m) * k / 5; ctx.moveTo(x, py + (cell - t) / 2); ctx.lineTo(x, py + (cell + t) / 2); }
+        else { const y = py + m + (cell - 2 * m) * k / 5; ctx.moveTo(px + (cell - t) / 2, y); ctx.lineTo(px + (cell + t) / 2, y); }
+        ctx.stroke();
+      }
+    };
+    plank(u & 2, false); plank(u & 1, true);
+  }
+
+  // ---------- 조작 ----------
+  function cellAt(e) {
+    const r = cv.getBoundingClientRect();
+    const x = Math.floor((e.clientX - r.left) / cell), y = Math.floor((e.clientY - r.top) / cell);
+    if (x < 0 || y < 0 || x >= level.w || y >= level.h) return -1;
+    return y * level.w + x;
+  }
+
+  // 손가락이 여러 칸을 건너뛰어도 한 칸씩 따라가게
+  function moveToward(target) {
+    for (let guard = 0; guard < 50 && target !== head(); guard++) {
+      // 방금 건넌 다리 위에 손가락이 있으면 그대로 둔다
+      if (level.bridges.has(target) && target === path[path.length - 2]) break;
+      if (path.length > 1 && target === path[path.length - 2]) { pop(); break; }
+      const [hx, hy] = xy(head()), [tx, ty] = xy(target);
+      const dx = Math.sign(tx - hx), dy = Math.sign(ty - hy);
+      const tries = Math.abs(tx - hx) >= Math.abs(ty - hy)
+        ? [[dx, 0], [0, dy]] : [[0, dy], [dx, 0]];
+      let moved = false;
+      for (const [sx, sy] of tries) {
+        if (!sx && !sy) continue;
+        const n = (hy + sy) * level.w + (hx + sx);
+        if (path.length > 1 && n === path[path.length - 2]) { pop(); moved = true; break; }
+        if (extend(n)) { moved = true; break; }
+      }
+      if (!moved || finished) break;
+    }
+  }
+
+  cv.addEventListener("pointerdown", e => {
+    if (!level) return;
+    const c = cellAt(e); if (c < 0) return;
+    if (c === level.well && path.length > 1 && !finished) { /* 우물을 누르면 처음부터 */
+      while (path.length > 1) pop(); say("처음부터 다시! 🪣"); update();
+    }
+    if (c === head()) dragging = true;
+    else if (path.length > 1 && c === path[path.length - 2]) { pop(); dragging = true; }
+    else if (adj(head(), c) && extend(c)) dragging = true;
+    else if (path.includes(c)) {
+      // 지나온 칸을 누르면 그 칸까지 되감기 (다리는 다리 앞까지)
+      const k = path.lastIndexOf(c);
+      while (path.length > k + 1) pop();
+      dragging = true; say("거기까지 되감았어요");
+    } else if (level.rocks.has(c)) say("🪨 바위는 지나갈 수 없어요");
+    if (dragging) cv.setPointerCapture(e.pointerId);
+    update();
+  });
+  cv.addEventListener("pointermove", e => {
+    if (!dragging) return;
+    const c = cellAt(e); if (c < 0 || c === head()) return;
+    moveToward(c); update();
+  });
+  const end = () => { dragging = false; };
+  cv.addEventListener("pointerup", end);
+  cv.addEventListener("pointercancel", end);
+
+  $("undoBtn").onclick = () => { pop(); update(); };
+  $("resetBtn").onclick = () => load(lvIdx);
+  $("hintBtn").onclick = showHint;
+  $("ovRetry").onclick = () => load(lvIdx);
+  $("ovNext").onclick = () => load(lvIdx + 1);
+  $("ovSelect").onclick = showSelect;
+  $("lvName").onclick = showSelect;
+  window.addEventListener("resize", () => level && !$("gameView").hidden && resize());
+
+  function showSelect() {
+    dragging = false;
+    $("overlay").classList.remove("show");
+    $("gameView").hidden = true; $("selectView").hidden = false;
+    renderLevels();
+    window.scrollTo(0, 0);
+  }
+
+  function renderLevels() {
+    const medals = medal.filter(Boolean).length;
+    const stars = best.reduce((a, b) => a + (b || 0), 0);
+    $("medalStat").textContent = `🏅 ${medals}/${SPECS.length}`;
+    $("selMedals").textContent = `🏅 ${medals}/${SPECS.length}`;
+    $("selStars").textContent = `★ ${stars}/${SPECS.length * 3}`;
+    const box = $("stages"); box.innerHTML = "";
+    const firstBridge = SPECS.findIndex(s => s.bridges > 0);
+    SPECS.forEach((s, i) => {
+      const b = document.createElement("button");
+      const st = best[i] || 0;
+      b.className = "stage" + (i === lvIdx && level ? " cur" : "") + (st === 3 ? " clear3" : "");
+      b.innerHTML =
+        (medal[i] ? '<span class="medal">🏅</span>' : "") +
+        (i === firstBridge ? '<span class="new">✨</span>' : "") +
+        `<div class="num">${i + 1}</div>` +
+        `<div class="size">${s.w}×${s.h}${s.bridges ? " · 🌉" + s.bridges : ""}</div>` +
+        `<div class="st">${[1, 2, 3].map(k => k <= st ? "★" : '<span class="off">★</span>').join("")}</div>`;
+      b.title = `정원 ${i + 1}`;
+      b.onclick = () => load(i);
+      box.appendChild(b);
+    });
+  }
+
+  // 테스트·나중 힌트 기능용
+  window.hanbut = { get level() { return level; }, get path() { return path.slice(); }, get hint() { return hint; } };
+
+  renderLevels(); // 처음에는 스테이지 선택 화면
+})();
+</script>
+</body>
+</html>
