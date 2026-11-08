@@ -95,6 +95,17 @@
       "files": ["index.html"]
     },
     {
+      "slug": "tangram",
+      "title": "칠교놀이",
+      "emoji": "🧩",
+      "color": "#ef6f6c",
+      "category": "game",
+      "genre": "퍼즐",
+      "summary": "일곱 조각을 끌고 돌리고 뒤집어서 집, 돛단배, 고양이 같은 그림자를 빈틈없이 채워요.",
+      "source": "../칠교놀이",
+      "files": ["index.html"]
+    },
+    {
       "slug": "braille",
       "title": "훈맹정음 점자 변환기",
       "emoji": "⠓",

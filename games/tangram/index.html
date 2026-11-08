@@ -1,0 +1,485 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com data:; img-src 'self' data: blob:; media-src 'self' data: blob:; connect-src 'self'; object-src 'none'; base-uri 'self'; form-action 'none'">
+<meta name="referrer" content="strict-origin-when-cross-origin">
+
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<title>칠교놀이</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Jua&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --paper:#fdf6e3; --tray:#efe3c8; --ink:#3b3f58; --shadow:#3b3f58; --accent:#ef6f6c;
+    --gold:#f6bd60; --muted:#8a8470; --card:#fffaf0;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;height:100%;background:var(--paper);color:var(--ink);
+    font-family:'Jua',system-ui,'Apple SD Gothic Neo','Malgun Gothic',sans-serif;
+    -webkit-user-select:none;user-select:none;overflow:hidden;-webkit-tap-highlight-color:transparent}
+  button{font-family:inherit;cursor:pointer;border:none}
+  .screen{position:fixed;inset:0;display:none;flex-direction:column}
+  .screen.on{display:flex}
+
+  /* 목록 화면 */
+  #menu{overflow-y:auto;align-items:center;padding:24px 16px 40px}
+  #menu h1{font-size:44px;margin:8px 0 2px;letter-spacing:2px}
+  #menu h1 span{display:inline-block}
+  #menu .sub{color:var(--muted);margin-bottom:18px;font-size:17px;text-align:center}
+  #cats{width:100%;max-width:760px}
+  .cat{width:100%;max-width:760px;margin:14px 0 6px;font-size:20px;color:var(--muted)}
+  .grid{width:100%;max-width:760px;display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:12px}
+  .card{background:var(--card);border-radius:18px;padding:10px 10px 12px;box-shadow:0 3px 0 #e2d4b4;
+    display:flex;flex-direction:column;align-items:center;gap:4px;color:var(--ink);font-size:18px;position:relative;transition:transform .12s}
+  .card:hover{transform:translateY(-2px)}
+  .card svg{width:100%;height:96px}
+  .card .stars{font-size:16px;color:var(--gold);letter-spacing:2px;min-height:20px}
+  .card .stars .off{color:#ddd2b8}
+  .card .time{font-size:13px;color:var(--muted)}
+  .card.locked{opacity:.5;cursor:not-allowed}
+  .card.locked::after{content:'🔒';position:absolute;top:8px;right:10px;font-size:18px}
+  .card .num{position:absolute;top:8px;left:12px;font-size:14px;color:var(--muted)}
+  .menu-foot{margin-top:22px;color:var(--muted);font-size:14px;display:flex;gap:10px;align-items:center}
+  .menu-foot button{background:transparent;color:var(--muted);font-size:14px;text-decoration:underline}
+
+  /* 게임 화면 */
+  #bar{display:flex;align-items:center;gap:8px;padding:8px 10px;flex-wrap:nowrap}
+  #bar .title{flex:1;font-size:21px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  #bar .timer{font-size:18px;color:var(--muted);min-width:52px;text-align:right}
+  .btn{background:var(--card);color:var(--ink);border-radius:14px;padding:8px 12px;font-size:17px;box-shadow:0 3px 0 #e2d4b4;white-space:nowrap}
+  .btn:active{transform:translateY(2px);box-shadow:0 1px 0 #e2d4b4}
+  .btn.hint{background:#fff3cf}
+  .btn .k{font-size:12px;color:var(--muted);margin-left:3px}
+  #stage{flex:1;position:relative;min-height:0}
+  #svg{position:absolute;inset:0;width:100%;height:100%;touch-action:none}
+  .piece{cursor:grab;stroke:#fffaf0;stroke-width:.06;stroke-linejoin:round;transition:filter .2s}
+  .piece.sel{stroke:var(--ink);stroke-width:.09}
+  .piece.dragging{cursor:grabbing;filter:drop-shadow(0 .15px .25px rgba(0,0,0,.35))}
+  .piece.glow{filter:drop-shadow(0 0 .35px #ffe066) drop-shadow(0 0 .35px #ffe066)}
+  .done .piece{animation:pulse .9s ease-in-out 2}
+  @keyframes pulse{50%{filter:brightness(1.18)}}
+  #tip{position:absolute;left:50%;bottom:10px;transform:translateX(-50%);background:rgba(59,63,88,.85);color:#fff;
+    padding:8px 14px;border-radius:12px;font-size:15px;pointer-events:none;text-align:center;width:max-content;max-width:92%;transition:opacity .4s}
+
+  .overlay{position:fixed;inset:0;background:rgba(59,63,88,.45);display:none;align-items:center;justify-content:center;z-index:10;padding:16px}
+  .overlay.on{display:flex}
+  .panel{background:var(--card);border-radius:24px;padding:24px 26px;text-align:center;max-width:360px;width:100%;box-shadow:0 6px 0 #e2d4b4}
+  .panel h2{margin:0 0 6px;font-size:30px}
+  .panel .big-stars{font-size:44px;color:var(--gold);letter-spacing:6px;margin:6px 0}
+  .panel .big-stars .off{color:#e3d8be}
+  .panel p{margin:6px 0;color:var(--muted);font-size:17px}
+  .panel .row{display:flex;gap:10px;justify-content:center;margin-top:16px;flex-wrap:wrap}
+  .panel .btn.main{background:var(--accent);color:#fff;box-shadow:0 3px 0 #c7524f}
+  @media (max-width:520px){
+    #bar{gap:5px;padding:6px 6px}
+    .btn{padding:7px 9px;font-size:15px}
+    .btn .k{display:none}
+    #bar .title{font-size:17px}
+    #menu h1{font-size:36px}
+  }
+</style>
+</head>
+<body>
+
+<section id="menu" class="screen on">
+  <h1><span>🧩</span> 칠교놀이</h1>
+  <div class="sub">조각 7개로 그림자를 빈틈없이 채워요</div>
+  <div id="cats"></div>
+  <div class="menu-foot"><span>팀 빈이네</span>·<button id="resetBtn">기록 지우기</button></div>
+</section>
+
+<section id="game" class="screen">
+  <div id="bar">
+    <button class="btn" id="backBtn" title="목록">◀</button>
+    <div class="title" id="title"></div>
+    <div class="timer" id="timer">0:00</div>
+    <button class="btn" id="rotBtn" title="돌리기 (R)">↻<span class="k">R</span></button>
+    <button class="btn" id="flipBtn" title="뒤집기 (F)">🪞<span class="k">F</span></button>
+    <button class="btn hint" id="hintBtn" title="힌트 (H)">💡<span class="k">H</span></button>
+    <button class="btn" id="soundBtn" title="소리 (M)">🔊</button>
+  </div>
+  <div id="stage">
+    <svg id="svg" xmlns="http://www.w3.org/2000/svg">
+      <rect id="trayBg" rx=".5" style="fill:var(--tray)"/>
+      <g id="shadowG"></g>
+      <g id="piecesG"></g>
+    </svg>
+    <div id="tip"></div>
+  </div>
+</section>
+
+<div class="overlay" id="winOv"><div class="panel">
+  <h2 id="winTitle">완성! 🎉</h2>
+  <div class="big-stars" id="winStars"></div>
+  <p id="winTime"></p>
+  <p id="winBest"></p>
+  <div class="row">
+    <button class="btn" id="againBtn">다시 하기</button>
+    <button class="btn" id="listBtn">목록</button>
+    <button class="btn main" id="nextBtn">다음 문제 ▶</button>
+  </div>
+</div></div>
+
+<div class="overlay" id="pauseOv"><div class="panel">
+  <h2>잠깐 쉬는 중 ⏸</h2>
+  <p>P나 Esc를 누르거나 아래 버튼을 눌러요</p>
+  <div class="row"><button class="btn main" id="resumeBtn">계속하기</button></div>
+</div></div>
+
+<script>
+// ===== 문제 데이터 (정답은 칠교 계산기로 확인함) =====
+// frame 0: 정수 격자 그대로, frame 1: 45° 돌린 모양. sol = [조각 종류, 꼭짓점(문제 좌표)]
+const STAGES=[{"id":"square","name":"정사각형","cat":"도형","emoji":"🟦","frame":0,"sol":[["L",[[0,0],[4,0],[2,2]]],["L",[[0,4],[0,0],[2,2]]],["S",[[2,4],[0,4],[1,3]]],["Q",[[2,2],[3,3],[2,4],[1,3]]],["S",[[3,1],[3,3],[2,2]]],["M",[[4,4],[2,4],[4,2]]],["P",[[4,2],[4,0],[3,1],[3,3]]]]},{"id":"triangle","name":"큰 삼각형","cat":"도형","emoji":"🔺","frame":0,"sol":[["L",[[4,4],[0,4],[2,2]]],["L",[[4,0],[4,4],[2,2]]],["S",[[4,2],[4,0],[5,1]]],["Q",[[5,1],[6,2],[5,3],[4,2]]],["M",[[4,4],[4,2],[6,4]]],["S",[[7,3],[5,3],[6,2]]],["P",[[7,3],[5,3],[6,4],[8,4]]]]},{"id":"rect","name":"직사각형","cat":"도형","emoji":"▭","frame":1,"sol":[["L",[[2,-2],[2,2],[0,0]]],["L",[[6,-2],[2,-2],[4,-4]]],["M",[[2,-2],[4,-2],[2,0]]],["Q",[[3,-1],[4,0],[3,1],[2,0]]],["S",[[2,2],[2,0],[3,1]]],["P",[[4,-2],[6,-2],[5,-1],[3,-1]]],["S",[[3,-1],[5,-1],[4,0]]]]},{"id":"trap","name":"사다리꼴","cat":"도형","emoji":"⏢","frame":1,"sol":[["L",[[3,-3],[3,1],[1,-1]]],["L",[[1,3],[1,-1],[3,1]]],["M",[[3,-3],[5,-3],[3,-1]]],["Q",[[4,-2],[5,-1],[4,0],[3,-1]]],["S",[[3,1],[3,-1],[4,0]]],["P",[[5,-3],[7,-3],[6,-2],[4,-2]]],["S",[[4,-2],[6,-2],[5,-1]]]]},{"id":"house","name":"집","cat":"물건","emoji":"🏠","frame":1,"sol":[["L",[[2,-2],[6,-2],[4,0]]],["L",[[2,2],[2,-2],[4,0]]],["M",[[5,1],[3,1],[5,-1]]],["S",[[3,1],[5,1],[4,2]]],["Q",[[5,1],[6,2],[5,3],[4,2]]],["P",[[6,0],[6,2],[5,1],[5,-1]]],["S",[[6,2],[6,0],[7,1]]]]},{"id":"boat","name":"돛단배","cat":"물건","emoji":"⛵","frame":0,"sol":[["L",[[0,4],[4,4],[2,6]]],["M",[[4,4],[2,4],[4,2]]],["L",[[6,6],[2,6],[4,4]]],["S",[[4,4],[4,2],[5,3]]],["Q",[[5,3],[6,4],[5,5],[4,4]]],["P",[[6,4],[8,4],[7,5],[5,5]]],["S",[[5,5],[7,5],[6,6]]]]},{"id":"rocket","name":"로켓","cat":"물건","emoji":"🚀","frame":1,"sol":[["M",[[2,-2],[4,-2],[2,0]]],["L",[[4,-2],[4,2],[2,0]]],["L",[[4,2],[4,-2],[6,0]]],["Q",[[5,1],[6,2],[5,3],[4,2]]],["S",[[4,4],[4,2],[5,3]]],["P",[[6,0],[8,0],[7,1],[5,1]]],["S",[[5,1],[7,1],[6,2]]]]},{"id":"fish","name":"물고기","cat":"동물","emoji":"🐟","frame":1,"sol":[["L",[[0,0],[4,0],[2,2]]],["L",[[6,0],[2,0],[4,-2]]],["S",[[3,1],[3,3],[2,2]]],["Q",[[4,0],[5,1],[4,2],[3,1]]],["P",[[4,2],[4,4],[3,3],[3,1]]],["M",[[6,-2],[6,0],[4,-2]]],["S",[[4,0],[6,0],[5,1]]]]},{"id":"cat","name":"고양이 얼굴","cat":"동물","emoji":"🐱","frame":1,"sol":[["S",[[0,0],[2,0],[1,1]]],["Q",[[2,0],[3,1],[2,2],[1,1]]],["P",[[3,-1],[3,1],[2,0],[2,-2]]],["L",[[4,0],[4,4],[2,2]]],["S",[[3,1],[3,-1],[4,0]]],["L",[[4,4],[4,0],[6,2]]],["M",[[6,4],[4,4],[6,2]]]]}];
+
+// ===== 칠교 조각 =====
+const BASE={L:[[0,0],[4,0],[2,2]],M:[[0,0],[2,0],[0,2]],S:[[0,0],[2,0],[1,1]],Q:[[1,0],[2,1],[1,2],[0,1]],P:[[1,0],[3,0],[2,1],[0,1]]};
+const PIECE_LIST=[['L','#ef6f6c'],['L','#4ea8de'],['M','#f6bd60'],['Q','#f28ab2'],['P','#3fbfa5'],['S','#84c98b'],['S','#b48ee6']];
+const C45=Math.SQRT1_2;
+
+function centroid(p){let a=0,cx=0,cy=0;for(let i=0;i<p.length;i++){const[x1,y1]=p[i],[x2,y2]=p[(i+1)%p.length];const f=x1*y2-x2*y1;a+=f;cx+=(x1+x2)*f;cy+=(y1+y2)*f}a/=2;return[cx/(6*a),cy/(6*a)]}
+function rot(pt,r){ // r: 45° 단위, 화면에서 시계 방향
+  const k=((r%8)+8)%8, c=[1,C45,0,-C45,-1,-C45,0,C45][k], s=[0,C45,1,C45,0,-C45,-1,-C45][k];
+  return[pt[0]*c-pt[1]*s, pt[0]*s+pt[1]*c];
+}
+const LOCAL={};for(const t in BASE){const c=centroid(BASE[t]);LOCAL[t]=BASE[t].map(([x,y])=>[x-c[0],y-c[1]])}
+function shapeOf(t,r,flip){return LOCAL[t].map(([x,y])=>rot([flip?-x:x,y],r))}
+function sameSet(a,b){ // 꼭짓점 묶음이 같은지 (순서 무관)
+  if(a.length!==b.length)return false;
+  return a.every(p=>b.some(q=>Math.abs(p[0]-q[0])<1e-3&&Math.abs(p[1]-q[1])<1e-3));
+}
+function centred(p){const c=centroid(p);return p.map(([x,y])=>[x-c[0],y-c[1]])}
+function inside(x,y,poly){let c=false;for(let i=0,j=poly.length-1;i<poly.length;j=i++){const[xi,yi]=poly[i],[xj,yj]=poly[j];if((yi>y)!==(yj>y)&&x<xi+(y-yi)*(xj-xi)/(yj-yi))c=!c}return c}
+const QC=[[.5,1/6],[5/6,.5],[.5,5/6],[1/6,.5]];
+function quarters(poly){ // 1x1 칸을 대각선으로 4등분한 조각 단위로 덮는 곳
+  const xs=poly.map(p=>p[0]),ys=poly.map(p=>p[1]),out=[];
+  for(let i=Math.floor(Math.min(...xs))-1;i<=Math.ceil(Math.max(...xs));i++)
+    for(let j=Math.floor(Math.min(...ys))-1;j<=Math.ceil(Math.max(...ys));j++)
+      for(let q=0;q<4;q++)if(inside(i+QC[q][0],j+QC[q][1],poly))out.push(i+','+j+','+q);
+  return out;
+}
+
+// ===== 기록 =====
+const SAVE_KEY='binine-tangram-v1';
+let save={unlocked:0,best:{},muted:false};
+try{const s=JSON.parse(localStorage.getItem(SAVE_KEY)||'null');if(s)save=Object.assign(save,s)}catch(e){}
+function store(){try{localStorage.setItem(SAVE_KEY,JSON.stringify(save))}catch(e){}}
+
+// ===== 소리 =====
+let actx=null;
+function tone(freq,dur,type='sine',vol=.18,when=0){
+  if(save.muted)return;
+  try{
+    actx=actx||new (window.AudioContext||window.webkitAudioContext)();
+    if(actx.state==='suspended')actx.resume();
+    const t=actx.currentTime+when,o=actx.createOscillator(),g=actx.createGain();
+    o.type=type;o.frequency.setValueAtTime(freq,t);g.gain.setValueAtTime(vol,t);g.gain.exponentialRampToValueAtTime(.001,t+dur);
+    o.connect(g).connect(actx.destination);o.start(t);o.stop(t+dur);
+  }catch(e){}
+}
+const SND={
+  pick:()=>tone(520,.07,'triangle',.12),
+  rot:()=>tone(700,.05,'square',.05),
+  snap:()=>{tone(330,.06,'triangle',.18);tone(660,.09,'triangle',.12,.04)},
+  hint:()=>{[880,1175,1568].forEach((f,i)=>tone(f,.15,'sine',.1,i*.07))},
+  win:()=>{[523,659,784,1047].forEach((f,i)=>tone(f,.25,'triangle',.16,i*.12))},
+};
+
+// ===== 화면 요소 =====
+const $=id=>document.getElementById(id);
+const svg=$('svg'),shadowG=$('shadowG'),piecesG=$('piecesG'),trayBg=$('trayBg');
+const NS='http://www.w3.org/2000/svg';
+
+// ===== 게임 상태 =====
+let G=null; // {stage, idx, pieces, offset, silQ, slots, hints, t0, elapsed, done, paused}
+let layout=null;
+
+function figToWorld(p){const q=rot(p,G.stage.frame);return[q[0]+G.offset[0],q[1]+G.offset[1]]}
+function worldToFig(w){return rot([w[0]-G.offset[0],w[1]-G.offset[1]],-G.stage.frame)}
+function pieceWorld(pc){return shapeOf(pc.t,pc.r,pc.flip).map(([x,y])=>[x+pc.c[0],y+pc.c[1]])}
+function pieceFig(pc){return pieceWorld(pc).map(worldToFig)}
+function onLattice(pc){return ((pc.r-G.stage.frame)%2+2)%2===0}
+
+function computeLayout(){
+  const W=$('stage').clientWidth||800,H=$('stage').clientHeight||600;
+  const land=W/H>1.15;
+  const B={w:11,h:10};
+  let vb,board,tray;
+  if(land){board={x:9.6,y:0,w:B.w,h:B.h};tray={x:.2,y:.4,w:9.2,h:9.2};vb=[0,0,9.6+B.w,B.h]}
+  else{board={x:0,y:0,w:B.w,h:9.4};tray={x:.2,y:9.4,w:10.6,h:7.2};vb=[0,0,B.w,9.4+7.6]}
+  return{land,vb,board,tray};
+}
+
+function figBBox(stage){ // 화면에서 그림자가 차지하는 범위 (offset 0 기준)
+  let xs=[],ys=[];
+  for(const[,p]of stage.sol)for(const v of p){const q=rot(v,stage.frame);xs.push(q[0]);ys.push(q[1])}
+  return{x0:Math.min(...xs),x1:Math.max(...xs),y0:Math.min(...ys),y1:Math.max(...ys)};
+}
+
+function trayHomes(){ // 조각 상자 안 기본 자리(선반에 차례로 놓기)
+  const T=layout.tray,gap=.45,homes=[];
+  let x=T.x+gap,y=T.y+gap,rowH=0;
+  for(const pc of G.pieces){
+    const s=shapeOf(pc.t,G.stage.frame,false);
+    const xs=s.map(p=>p[0]),ys=s.map(p=>p[1]);
+    const w=Math.max(...xs)-Math.min(...xs),h=Math.max(...ys)-Math.min(...ys);
+    if(x+w>T.x+T.w-gap+1e-6){x=T.x+gap;y+=rowH+gap;rowH=0}
+    homes.push([x-Math.min(...xs),y-Math.min(...ys)]);
+    x+=w+gap;rowH=Math.max(rowH,h);
+  }
+  // 세로로 가운데 맞추기
+  const usedH=y+rowH-T.y,dy=Math.max(0,(T.h-usedH)/2);
+  return homes.map(h=>[h[0],h[1]+dy]);
+}
+
+function applyLayout(first){
+  const old=layout,oldOff=G&&G.offset?G.offset.slice():null;
+  layout=computeLayout();
+  svg.setAttribute('viewBox',layout.vb.join(' '));
+  const T=layout.tray;trayBg.setAttribute('x',T.x);trayBg.setAttribute('y',T.y);trayBg.setAttribute('width',T.w);trayBg.setAttribute('height',T.h);
+  if(!G)return;
+  const bb=figBBox(G.stage),Bd=layout.board;
+  G.offset=[Bd.x+Bd.w/2-(bb.x0+bb.x1)/2, Bd.y+Bd.h/2-(bb.y0+bb.y1)/2];
+  G.bbox={x0:bb.x0+G.offset[0],x1:bb.x1+G.offset[0],y0:bb.y0+G.offset[1],y1:bb.y1+G.offset[1]};
+  const homes=trayHomes();
+  G.pieces.forEach((pc,i)=>{
+    const wasBoard=!first&&pc.onBoard;
+    pc.home=homes[i];
+    if(first||!wasBoard){pc.c=homes[i].slice();pc.r=G.stage.frame;pc.flip=false}
+    else if(oldOff){pc.c=[pc.c[0]+G.offset[0]-oldOff[0],pc.c[1]+G.offset[1]-oldOff[1]]}
+  });
+  drawShadow();drawPieces();
+}
+
+function drawShadow(){
+  shadowG.innerHTML='';
+  for(const[,p]of G.stage.sol){
+    const el=document.createElementNS(NS,'polygon');
+    el.setAttribute('points',p.map(figToWorld).map(v=>v.join(',')).join(' '));
+    el.setAttribute('style','fill:var(--shadow);stroke:var(--shadow)');el.setAttribute('stroke-width','.05');el.setAttribute('stroke-linejoin','round');
+    shadowG.appendChild(el);
+  }
+}
+
+function drawPieces(){
+  for(const pc of G.pieces){
+    if(!pc.el){
+      pc.el=document.createElementNS(NS,'polygon');pc.el.setAttribute('class','piece');pc.el.setAttribute('fill',pc.color);
+      pc.el.addEventListener('pointerdown',e=>onDown(e,pc));piecesG.appendChild(pc.el);
+    }
+    pc.el.setAttribute('points',pieceWorld(pc).map(v=>v[0].toFixed(4)+','+v[1].toFixed(4)).join(' '));
+    pc.el.classList.toggle('sel',G.sel===pc);
+  }
+}
+function drawOne(pc){pc.el.setAttribute('points',pieceWorld(pc).map(v=>v[0].toFixed(4)+','+v[1].toFixed(4)).join(' '))}
+
+// ===== 시작 =====
+function startStage(idx){
+  piecesG.innerHTML='';
+  const stage=STAGES[idx];
+  G={stage,idx,hints:0,elapsed:0,t0:null,done:false,paused:false,sel:null,
+     pieces:PIECE_LIST.map(([t,color],i)=>({id:i,t,color,r:stage.frame,flip:false,c:[0,0],onBoard:false})),
+     slots:stage.sol.map(([t,p])=>({t,p,cen:centred(p),c:centroid(p)}))};
+  const silSet=new Set();for(const s of G.slots)for(const k of quarters(s.p))silSet.add(k);G.silQ=silSet;
+  $('title').textContent=`${idx+1}. ${stage.emoji} ${stage.name}`;
+  $('stage').classList.remove('done');
+  show('game');applyLayout(true);
+  G.t0=performance.now();
+  const tip=$('tip');
+  tip.textContent=idx===0?'조각을 끌어 그림자에 놓아요 · 톡 누르면 돌아가요 · 🪞로 뒤집어요':'막히면 💡 힌트! (힌트를 쓰면 별이 하나 줄어요)';
+  tip.style.opacity=1;clearTimeout(tip._t);tip._t=setTimeout(()=>tip.style.opacity=0,idx===0?7000:3500);
+}
+
+function show(id){for(const s of document.querySelectorAll('.screen'))s.classList.toggle('on',s.id===id)}
+
+// ===== 끌기 / 톡 돌리기 =====
+let drag=null;
+function svgPt(e){const pt=svg.createSVGPoint();pt.x=e.clientX;pt.y=e.clientY;const m=svg.getScreenCTM().inverse();const r=pt.matrixTransform(m);return[r.x,r.y]}
+function onDown(e,pc){
+  if(G.done||G.paused)return;
+  e.preventDefault();e.stopPropagation();
+  pc.el.setPointerCapture(e.pointerId);
+  piecesG.appendChild(pc.el); // 맨 위로
+  G.sel=pc;drawPieces();
+  const p=svgPt(e);
+  drag={pc,start:p,c0:pc.c.slice(),t:performance.now(),moved:0,px:[e.clientX,e.clientY],id:e.pointerId};
+  pc.el.classList.add('dragging');SND.pick();
+}
+svg.addEventListener('pointermove',e=>{
+  if(!drag||e.pointerId!==drag.id)return;
+  const p=svgPt(e),vb=layout.vb;
+  drag.moved=Math.max(drag.moved,Math.hypot(e.clientX-drag.px[0],e.clientY-drag.px[1]));
+  const pc=drag.pc;
+  pc.c=[Math.min(vb[2]-.3,Math.max(.3,drag.c0[0]+p[0]-drag.start[0])),Math.min(vb[3]-.3,Math.max(.3,drag.c0[1]+p[1]-drag.start[1]))];
+  drawOne(pc);
+});
+function endDrag(e){
+  if(!drag||e.pointerId!==drag.id)return;
+  const pc=drag.pc,tap=drag.moved<8&&performance.now()-drag.t<400;
+  pc.el.classList.remove('dragging');drag=null;
+  if(tap){rotatePiece(pc,1);return}
+  settle(pc,true);
+}
+svg.addEventListener('pointerup',endDrag);svg.addEventListener('pointercancel',endDrag);
+svg.addEventListener('pointerdown',e=>{if(e.target===svg||e.target===trayBg){G&&(G.sel=null,drawPieces())}});
+
+function rotatePiece(pc,dir){if(!pc||G.done)return;pc.r=(pc.r+dir+8)%8;SND.rot();settle(pc,false)}
+function flipPiece(pc){if(!pc||G.done)return;pc.flip=!pc.flip;SND.rot();settle(pc,false)}
+
+function nearBoard(pc){const b=G.bbox,m=1.2;return pc.c[0]>b.x0-m&&pc.c[0]<b.x1+m&&pc.c[1]>b.y0-m&&pc.c[1]<b.y1+m}
+
+// 놓았을 때: 맞는 자리 가까우면 착 붙이고, 아니면 격자에 맞춤
+function settle(pc,dropped){
+  pc.onBoard=nearBoard(pc);
+  let snapped=false;
+  if(pc.onBoard&&onLattice(pc)){
+    const fv=pieceFig(pc),fc=centroid(fv),fcen=centred(fv);
+    let best=null,bd=1.25;
+    for(const s of G.slots){
+      if(s.t!==pc.t||!sameSet(fcen,s.cen))continue;
+      const d=Math.hypot(fc[0]-s.c[0],fc[1]-s.c[1]);
+      if(d<bd&&!slotTakenByOther(s,pc)){bd=d;best=s}
+    }
+    if(best){pc.c=figToWorld(best.c);snapped=true}
+    else{ // 격자 맞춤
+      const v=fv[0],d=[Math.round(v[0])-v[0],Math.round(v[1])-v[1]],dw=rot(d,G.stage.frame);
+      pc.c=[pc.c[0]+dw[0],pc.c[1]+dw[1]];
+    }
+  }
+  drawOne(pc);
+  if(snapped&&dropped)SND.snap();
+  if(!G.t0)G.t0=performance.now();
+  checkWin();
+}
+function onSlot(pc,s){
+  if(pc.t!==s.t||!onLattice(pc))return false;
+  const fv=pieceFig(pc),fc=centroid(fv);
+  return Math.hypot(fc[0]-s.c[0],fc[1]-s.c[1])<1e-3&&sameSet(centred(fv),s.cen);
+}
+function slotTakenByOther(s,pc){return G.pieces.some(o=>o!==pc&&onSlot(o,s))}
+
+function pieceQuarters(pc){
+  if(!onLattice(pc))return null;
+  const fv=pieceFig(pc);
+  if(!fv.every(v=>Math.abs(v[0]-Math.round(v[0]))<1e-4&&Math.abs(v[1]-Math.round(v[1]))<1e-4))return null;
+  return quarters(fv.map(v=>[Math.round(v[0]),Math.round(v[1])]));
+}
+function checkWin(){
+  if(G.done)return;
+  const all=new Set();let n=0;
+  for(const pc of G.pieces){const q=pieceQuarters(pc);if(!q)return;for(const k of q){if(all.has(k)||!G.silQ.has(k))return;all.add(k)}n+=q.length}
+  if(n===G.silQ.size)win();
+}
+
+// ===== 힌트 =====
+function hint(){
+  if(!G||G.done||G.paused)return;
+  const order=[...G.slots].sort((a,b)=>({L:0,M:1,P:2,Q:3,S:4}[a.t]-{L:0,M:1,P:2,Q:3,S:4}[b.t]));
+  const slot=order.find(s=>!G.pieces.some(pc=>onSlot(pc,s)));
+  if(!slot)return;
+  const cand=G.pieces.filter(pc=>pc.t===slot.t&&!G.slots.some(s=>onSlot(pc,s)));
+  const pc=cand.find(p=>!p.onBoard)||cand[0];
+  if(!pc)return;
+  // 정답 자리를 가로막는 조각은 상자로 돌려보냄
+  const sq=new Set(quarters(slot.p));
+  for(const o of G.pieces){
+    if(o===pc||G.slots.some(s=>onSlot(o,s)))continue;
+    const q=pieceQuarters(o),fc=centroid(pieceFig(o));
+    const blocks=q?q.some(k=>sq.has(k)):inside(fc[0],fc[1],slot.p);
+    if(blocks){o.c=o.home.slice();o.r=G.stage.frame;o.flip=false;o.onBoard=false;drawOne(o)}
+  }
+  const want=centred(slot.p.map(figToWorld));
+  let found=null;
+  for(let f=0;f<2&&!found;f++)for(let r=0;r<8;r++)if(sameSet(shapeOf(pc.t,r,!!f),want)){found={r,flip:!!f};break}
+  if(!found)return;
+  G.hints++;
+  pc.r=found.r;pc.flip=found.flip;
+  const from=pc.c.slice(),to=figToWorld(slot.c),t0=performance.now();
+  piecesG.appendChild(pc.el);pc.el.classList.add('glow');SND.hint();
+  (function step(now){
+    const k=Math.min(1,(now-t0)/350),e=1-Math.pow(1-k,3);
+    pc.c=[from[0]+(to[0]-from[0])*e,from[1]+(to[1]-from[1])*e];drawOne(pc);
+    if(k<1)requestAnimationFrame(step);
+    else{pc.c=to;pc.onBoard=true;drawOne(pc);setTimeout(()=>pc.el.classList.remove('glow'),700);checkWin()}
+  })(t0);
+}
+
+// ===== 완성 =====
+function stars(){return Math.max(1,3-G.hints)}
+function starHTML(n){return'★'.repeat(n)+'<span class="off">'+'★'.repeat(3-n)+'</span>'}
+function fmt(ms){const s=Math.floor(ms/1000);return Math.floor(s/60)+':'+String(s%60).padStart(2,'0')}
+function elapsed(){return G.elapsed+(G.t0&&!G.paused&&!G.done?performance.now()-G.t0:0)}
+function win(){
+  G.elapsed=elapsed();G.done=true;G.sel=null;drawPieces();
+  $('stage').classList.add('done');SND.win();
+  const st=stars(),id=G.stage.id,prev=save.best[id];
+  const better=!prev||st>prev.s||(st===prev.s&&G.elapsed<prev.t);
+  if(better)save.best[id]={s:st,t:Math.round(G.elapsed)};
+  save.unlocked=Math.max(save.unlocked,Math.min(STAGES.length-1,G.idx+1));store();
+  $('winTitle').textContent=`${G.stage.emoji} ${G.stage.name} 완성!`;
+  $('winStars').innerHTML=starHTML(st);
+  $('winTime').textContent=`걸린 시간 ${fmt(G.elapsed)}`+(G.hints?` · 힌트 ${G.hints}번`:' · 힌트 없이!');
+  const b=save.best[id];$('winBest').textContent=better&&prev?'🎉 새 기록!':`최고 기록 ${'★'.repeat(b.s)} ${fmt(b.t)}`;
+  const last=G.idx===STAGES.length-1;
+  $('nextBtn').textContent=last?'목록으로 ▶':'다음 문제 ▶';
+  setTimeout(()=>$('winOv').classList.add('on'),900);
+}
+
+// ===== 목록 =====
+function miniSVG(stage){
+  const bb=figBBox(stage),pad=.5,w=bb.x1-bb.x0+pad*2,h=bb.y1-bb.y0+pad*2;
+  const polys=stage.sol.map(([,p])=>`<polygon points="${p.map(v=>rot(v,stage.frame)).map(v=>v.join(',')).join(' ')}" style="fill:var(--shadow);stroke:var(--shadow)" stroke-width=".05"/>`).join('');
+  return`<svg viewBox="${bb.x0-pad} ${bb.y0-pad} ${w} ${h}">${polys}</svg>`;
+}
+function buildMenu(){
+  const box=$('cats');box.innerHTML='';
+  let lastCat=null,grid=null;
+  STAGES.forEach((s,i)=>{
+    if(s.cat!==lastCat){lastCat=s.cat;const h=document.createElement('div');h.className='cat';h.textContent={도형:'🔷 도형',물건:'🏠 물건',동물:'🐾 동물'}[s.cat];box.appendChild(h);grid=document.createElement('div');grid.className='grid';box.appendChild(grid)}
+    const b=save.best[s.id],locked=i>save.unlocked;
+    const card=document.createElement('button');card.className='card'+(locked?' locked':'');
+    card.innerHTML=`<span class="num">${i+1}</span>${miniSVG(s)}<div>${s.name}</div><div class="stars">${b?starHTML(b.s):''}</div><div class="time">${b?fmt(b.t):(locked?'':'도전!')}</div>`;
+    card.onclick=()=>{if(!locked)startStage(i)};
+    grid.appendChild(card);
+  });
+}
+
+// ===== 버튼·키 =====
+$('backBtn').onclick=()=>{G=null;buildMenu();show('menu')};
+$('rotBtn').onclick=()=>G&&rotatePiece(G.sel,1);
+$('flipBtn').onclick=()=>G&&flipPiece(G.sel);
+$('hintBtn').onclick=hint;
+function setSound(){$('soundBtn').textContent=save.muted?'🔇':'🔊'}
+$('soundBtn').onclick=()=>{save.muted=!save.muted;store();setSound()};
+$('againBtn').onclick=()=>{$('winOv').classList.remove('on');startStage(G.idx)};
+$('listBtn').onclick=()=>{$('winOv').classList.remove('on');G=null;buildMenu();show('menu')};
+$('nextBtn').onclick=()=>{$('winOv').classList.remove('on');const n=G.idx+1;if(n<STAGES.length)startStage(n);else{G=null;buildMenu();show('menu')}};
+$('resumeBtn').onclick=()=>togglePause(false);
+$('resetBtn').onclick=()=>{if(confirm('별과 시간 기록을 모두 지울까요?')){save={unlocked:0,best:{},muted:save.muted};store();buildMenu()}};
+function togglePause(on){
+  if(!G||G.done)return;
+  if(on===undefined)on=!G.paused;
+  if(on&&!G.paused){G.elapsed=elapsed();G.paused=true;G.t0=null}
+  else if(!on&&G.paused){G.paused=false;G.t0=performance.now()}
+  $('pauseOv').classList.toggle('on',G.paused);
+}
+document.addEventListener('keydown',e=>{
+  if(!G||!$('game').classList.contains('on'))return;
+  if(e.code==='KeyP'||e.code==='Escape'){togglePause();return}
+  if(e.code==='KeyM'){$('soundBtn').click();return}
+  if(G.paused||G.done)return;
+  if(e.code==='KeyR')rotatePiece(G.sel,e.shiftKey?-1:1);
+  else if(e.code==='KeyF')flipPiece(G.sel);
+  else if(e.code==='KeyH')hint();
+});
+document.addEventListener('visibilitychange',()=>{if(document.hidden&&G&&!G.done)togglePause(true)});
+window.addEventListener('resize',()=>{if(G&&$('game').classList.contains('on'))applyLayout(false);else layout=computeLayout()});
+setInterval(()=>{if(G&&$('game').classList.contains('on'))$('timer').textContent=fmt(elapsed())},250);
+
+// 검사용 (게임에는 영향 없음)
+window.__tg={stages:STAGES,get g(){return G},hint,startStage,checkWin};
+
+setSound();layout=computeLayout();buildMenu();
+</script>
+</body>
+</html>
