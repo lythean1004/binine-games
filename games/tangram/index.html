@@ -94,7 +94,8 @@
     <button class="btn" id="backBtn" title="목록">◀</button>
     <div class="title" id="title"></div>
     <div class="timer" id="timer">0:00</div>
-    <button class="btn" id="rotBtn" title="돌리기 (R)">↻<span class="k">R</span></button>
+    <button class="btn" id="rotLBtn" title="왼쪽으로 돌리기 (← 또는 Q)">↺<span class="k">←</span></button>
+    <button class="btn" id="rotBtn" title="오른쪽으로 돌리기 (→ 또는 E)">↻<span class="k">→</span></button>
     <button class="btn" id="flipBtn" title="뒤집기 (F)">🪞<span class="k">F</span></button>
     <button class="btn hint" id="hintBtn" title="힌트 (H)">💡<span class="k">H</span></button>
     <button class="btn" id="soundBtn" title="소리 (M)">🔊</button>
@@ -130,7 +131,7 @@
 <script>
 // ===== 문제 데이터 (정답은 칠교 계산기로 확인함) =====
 // frame 0: 정수 격자 그대로, frame 1: 45° 돌린 모양. sol = [조각 종류, 꼭짓점(문제 좌표)]
-const STAGES=[{"id":"square","name":"정사각형","cat":"도형","emoji":"🟦","frame":0,"sol":[["L",[[0,0],[4,0],[2,2]]],["L",[[0,4],[0,0],[2,2]]],["S",[[2,4],[0,4],[1,3]]],["Q",[[2,2],[3,3],[2,4],[1,3]]],["S",[[3,1],[3,3],[2,2]]],["M",[[4,4],[2,4],[4,2]]],["P",[[4,2],[4,0],[3,1],[3,3]]]]},{"id":"triangle","name":"큰 삼각형","cat":"도형","emoji":"🔺","frame":0,"sol":[["L",[[4,4],[0,4],[2,2]]],["L",[[4,0],[4,4],[2,2]]],["S",[[4,2],[4,0],[5,1]]],["Q",[[5,1],[6,2],[5,3],[4,2]]],["M",[[4,4],[4,2],[6,4]]],["S",[[7,3],[5,3],[6,2]]],["P",[[7,3],[5,3],[6,4],[8,4]]]]},{"id":"rect","name":"직사각형","cat":"도형","emoji":"▭","frame":1,"sol":[["L",[[2,-2],[2,2],[0,0]]],["L",[[6,-2],[2,-2],[4,-4]]],["M",[[2,-2],[4,-2],[2,0]]],["Q",[[3,-1],[4,0],[3,1],[2,0]]],["S",[[2,2],[2,0],[3,1]]],["P",[[4,-2],[6,-2],[5,-1],[3,-1]]],["S",[[3,-1],[5,-1],[4,0]]]]},{"id":"trap","name":"사다리꼴","cat":"도형","emoji":"⏢","frame":1,"sol":[["L",[[3,-3],[3,1],[1,-1]]],["L",[[1,3],[1,-1],[3,1]]],["M",[[3,-3],[5,-3],[3,-1]]],["Q",[[4,-2],[5,-1],[4,0],[3,-1]]],["S",[[3,1],[3,-1],[4,0]]],["P",[[5,-3],[7,-3],[6,-2],[4,-2]]],["S",[[4,-2],[6,-2],[5,-1]]]]},{"id":"house","name":"집","cat":"물건","emoji":"🏠","frame":1,"sol":[["L",[[2,-2],[6,-2],[4,0]]],["L",[[2,2],[2,-2],[4,0]]],["M",[[5,1],[3,1],[5,-1]]],["S",[[3,1],[5,1],[4,2]]],["Q",[[5,1],[6,2],[5,3],[4,2]]],["P",[[6,0],[6,2],[5,1],[5,-1]]],["S",[[6,2],[6,0],[7,1]]]]},{"id":"boat","name":"돛단배","cat":"물건","emoji":"⛵","frame":0,"sol":[["L",[[0,4],[4,4],[2,6]]],["M",[[4,4],[2,4],[4,2]]],["L",[[6,6],[2,6],[4,4]]],["S",[[4,4],[4,2],[5,3]]],["Q",[[5,3],[6,4],[5,5],[4,4]]],["P",[[6,4],[8,4],[7,5],[5,5]]],["S",[[5,5],[7,5],[6,6]]]]},{"id":"rocket","name":"로켓","cat":"물건","emoji":"🚀","frame":1,"sol":[["M",[[2,-2],[4,-2],[2,0]]],["L",[[4,-2],[4,2],[2,0]]],["L",[[4,2],[4,-2],[6,0]]],["Q",[[5,1],[6,2],[5,3],[4,2]]],["S",[[4,4],[4,2],[5,3]]],["P",[[6,0],[8,0],[7,1],[5,1]]],["S",[[5,1],[7,1],[6,2]]]]},{"id":"fish","name":"물고기","cat":"동물","emoji":"🐟","frame":1,"sol":[["L",[[0,0],[4,0],[2,2]]],["L",[[6,0],[2,0],[4,-2]]],["S",[[3,1],[3,3],[2,2]]],["Q",[[4,0],[5,1],[4,2],[3,1]]],["P",[[4,2],[4,4],[3,3],[3,1]]],["M",[[6,-2],[6,0],[4,-2]]],["S",[[4,0],[6,0],[5,1]]]]},{"id":"cat","name":"고양이 얼굴","cat":"동물","emoji":"🐱","frame":1,"sol":[["S",[[0,0],[2,0],[1,1]]],["Q",[[2,0],[3,1],[2,2],[1,1]]],["P",[[3,-1],[3,1],[2,0],[2,-2]]],["L",[[4,0],[4,4],[2,2]]],["S",[[3,1],[3,-1],[4,0]]],["L",[[4,4],[4,0],[6,2]]],["M",[[6,4],[4,4],[6,2]]]]}];
+const STAGES=[{"id":"square","name":"정사각형","cat":"도형","emoji":"🟦","frame":0,"sol":[["L",[[0,0],[4,0],[2,2]]],["L",[[0,4],[0,0],[2,2]]],["S",[[2,4],[0,4],[1,3]]],["Q",[[2,2],[3,3],[2,4],[1,3]]],["S",[[3,1],[3,3],[2,2]]],["M",[[4,4],[2,4],[4,2]]],["P",[[4,2],[4,0],[3,1],[3,3]]]]},{"id":"triangle","name":"큰 삼각형","cat":"도형","emoji":"🔺","frame":0,"sol":[["L",[[4,4],[0,4],[2,2]]],["L",[[4,0],[4,4],[2,2]]],["S",[[4,2],[4,0],[5,1]]],["Q",[[5,1],[6,2],[5,3],[4,2]]],["M",[[4,4],[4,2],[6,4]]],["S",[[7,3],[5,3],[6,2]]],["P",[[7,3],[5,3],[6,4],[8,4]]]]},{"id":"rect","name":"직사각형","cat":"도형","emoji":"▭","frame":1,"sol":[["L",[[2,-2],[2,2],[0,0]]],["L",[[6,-2],[2,-2],[4,-4]]],["M",[[2,-2],[4,-2],[2,0]]],["Q",[[3,-1],[4,0],[3,1],[2,0]]],["S",[[2,2],[2,0],[3,1]]],["P",[[4,-2],[6,-2],[5,-1],[3,-1]]],["S",[[3,-1],[5,-1],[4,0]]]]},{"id":"trap","name":"사다리꼴","cat":"도형","emoji":"⏢","frame":1,"sol":[["L",[[3,-3],[3,1],[1,-1]]],["L",[[1,3],[1,-1],[3,1]]],["M",[[3,-3],[5,-3],[3,-1]]],["Q",[[4,-2],[5,-1],[4,0],[3,-1]]],["S",[[3,1],[3,-1],[4,0]]],["P",[[5,-3],[7,-3],[6,-2],[4,-2]]],["S",[[4,-2],[6,-2],[5,-1]]]]},{"id":"house","name":"집","cat":"물건","emoji":"🏠","frame":1,"sol":[["L",[[2,-2],[6,-2],[4,0]]],["L",[[2,2],[2,-2],[4,0]]],["M",[[5,1],[3,1],[5,-1]]],["S",[[3,1],[5,1],[4,2]]],["Q",[[5,1],[6,2],[5,3],[4,2]]],["P",[[6,0],[6,2],[5,1],[5,-1]]],["S",[[6,2],[6,0],[7,1]]]]},{"id":"boat","name":"돛단배","cat":"물건","emoji":"⛵","frame":0,"sol":[["L",[[0,4],[4,4],[2,6]]],["M",[[4,4],[2,4],[4,2]]],["L",[[6,6],[2,6],[4,4]]],["S",[[4,4],[4,2],[5,3]]],["Q",[[5,3],[6,4],[5,5],[4,4]]],["P",[[6,4],[8,4],[7,5],[5,5]]],["S",[[5,5],[7,5],[6,6]]]]},{"id":"rocket","name":"로켓","cat":"물건","emoji":"🚀","frame":1,"sol":[["M",[[2,-2],[4,-2],[2,0]]],["L",[[4,-2],[4,2],[2,0]]],["L",[[4,2],[4,-2],[6,0]]],["Q",[[5,1],[6,2],[5,3],[4,2]]],["S",[[4,4],[4,2],[5,3]]],["P",[[6,0],[8,0],[7,1],[5,1]]],["S",[[5,1],[7,1],[6,2]]]]},{"id":"arrow","name":"화살표","cat":"물건","emoji":"➡️","frame":1,"sol":[["L",[[3,-3],[3,1],[1,-1]]],["S",[[2,-4],[4,-4],[3,-3]]],["Q",[[4,-4],[5,-3],[4,-2],[3,-3]]],["L",[[3,1],[3,-3],[5,-1]]],["M",[[6,-4],[6,-2],[4,-4]]],["S",[[5,-3],[5,-1],[4,-2]]],["P",[[6,-2],[6,0],[5,-1],[5,-3]]]]},{"id":"candle","name":"양초","cat":"물건","emoji":"🕯️","frame":1,"sol":[["Q",[[2,2],[3,1],[4,2],[3,3]]],["S",[[3,1],[4,0],[5,1]]],["S",[[3,1],[4,2],[5,1]]],["L",[[3,3],[5,1],[5,5]]],["L",[[5,1],[7,3],[5,5]]],["M",[[2,2],[4,0],[2,0]]],["P",[[2,2],[2,0],[1,-1],[1,1]]]]},{"id":"fish","name":"물고기","cat":"동물","emoji":"🐟","frame":1,"sol":[["L",[[0,0],[4,0],[2,2]]],["L",[[6,0],[2,0],[4,-2]]],["S",[[3,1],[3,3],[2,2]]],["Q",[[4,0],[5,1],[4,2],[3,1]]],["P",[[4,2],[4,4],[3,3],[3,1]]],["M",[[6,-2],[6,0],[4,-2]]],["S",[[4,0],[6,0],[5,1]]]]},{"id":"cat","name":"고양이 얼굴","cat":"동물","emoji":"🐱","frame":1,"sol":[["S",[[0,0],[2,0],[1,1]]],["Q",[[2,0],[3,1],[2,2],[1,1]]],["P",[[3,-1],[3,1],[2,0],[2,-2]]],["L",[[4,0],[4,4],[2,2]]],["S",[[3,1],[3,-1],[4,0]]],["L",[[4,4],[4,0],[6,2]]],["M",[[6,4],[4,4],[6,2]]]]},{"id":"sitcat","name":"앉은 고양이","cat":"동물","emoji":"🐈","frame":0,"sol":[["L",[[0,-4],[0,0],[2,-2]]],["L",[[0,0],[4,0],[2,-2]]],["Q",[[1,-5],[2,-4],[1,-3],[0,-4]]],["S",[[0,-4],[1,-5],[0,-6]]],["S",[[2,-4],[1,-5],[2,-6]]],["P",[[4,0],[6,0],[5,-1],[3,-1]]],["M",[[0,0],[0,-2],[-2,0]]]]},{"id":"rabbit","name":"토끼","cat":"동물","emoji":"🐰","frame":0,"sol":[["L",[[0,-2],[4,-2],[2,-4]]],["L",[[0,-2],[4,-2],[2,0]]],["Q",[[1,-5],[2,-4],[1,-3],[0,-4]]],["P",[[0,-4],[0,-6],[1,-7],[1,-5]]],["S",[[1,-5],[2,-4],[2,-6]]],["M",[[2,0],[4,0],[4,-2]]],["S",[[4,-2],[4,0],[5,-1]]]]},{"id":"swan","name":"백조","cat":"동물","emoji":"🦢","frame":0,"sol":[["L",[[2,0],[6,0],[4,2]]],["M",[[6,0],[6,2],[4,2]]],["L",[[6,2],[6,-2],[8,0]]],["S",[[2,0],[4,0],[3,-1]]],["P",[[2,0],[3,-1],[3,-3],[2,-2]]],["Q",[[2,-4],[3,-3],[2,-2],[1,-3]]],["S",[[1,-3],[2,-2],[0,-2]]]]},{"id":"runner","name":"달리는 사람","cat":"사람","emoji":"🏃","frame":0,"sol":[["Q",[[3,-9],[4,-8],[3,-7],[2,-8]]],["L",[[2,-8],[2,-4],[4,-6]]],["S",[[2,-8],[2,-6],[1,-7]]],["P",[[3,-5],[4,-6],[6,-6],[5,-5]]],["M",[[2,-6],[2,-4],[0,-4]]],["S",[[0,-4],[1,-5],[-1,-5]]],["L",[[3,-5],[1,-3],[3,-1]]]]}];
 
 // ===== 칠교 조각 =====
 const BASE={L:[[0,0],[4,0],[2,2]],M:[[0,0],[2,0],[0,2]],S:[[0,0],[2,0],[1,1]],Q:[[1,0],[2,1],[1,2],[0,1]],P:[[1,0],[3,0],[2,1],[0,1]]};
@@ -266,6 +267,7 @@ function drawPieces(){
     if(!pc.el){
       pc.el=document.createElementNS(NS,'polygon');pc.el.setAttribute('class','piece');pc.el.setAttribute('fill',pc.color);
       pc.el.addEventListener('pointerdown',e=>onDown(e,pc));piecesG.appendChild(pc.el);
+      pc.el.addEventListener('contextmenu',e=>{e.preventDefault();if(!G||G.done||G.paused)return;G.sel=pc;drawPieces();rotatePiece(pc,-1)}); // 오른쪽 클릭 = 반대로 돌리기
     }
     pc.el.setAttribute('points',pieceWorld(pc).map(v=>v[0].toFixed(4)+','+v[1].toFixed(4)).join(' '));
     pc.el.classList.toggle('sel',G.sel===pc);
@@ -286,7 +288,7 @@ function startStage(idx){
   show('game');applyLayout(true);
   G.t0=performance.now();
   const tip=$('tip');
-  tip.textContent=idx===0?'조각을 끌어 그림자에 놓아요 · 톡 누르면 돌아가요 · 🪞로 뒤집어요':'막히면 💡 힌트! (힌트를 쓰면 별이 하나 줄어요)';
+  tip.textContent=idx===0?'조각을 끌어 그림자에 놓아요 · 톡 누르면 돌아가요 · 반대로는 ↺ (←키, 오른쪽 클릭) · 🪞로 뒤집어요':'막히면 💡 힌트! (힌트를 쓰면 별이 하나 줄어요)';
   tip.style.opacity=1;clearTimeout(tip._t);tip._t=setTimeout(()=>tip.style.opacity=0,idx===0?7000:3500);
 }
 
@@ -296,8 +298,9 @@ function show(id){for(const s of document.querySelectorAll('.screen'))s.classLis
 let drag=null;
 function svgPt(e){const pt=svg.createSVGPoint();pt.x=e.clientX;pt.y=e.clientY;const m=svg.getScreenCTM().inverse();const r=pt.matrixTransform(m);return[r.x,r.y]}
 function onDown(e,pc){
-  if(G.done||G.paused)return;
+  if(G.done||G.paused||e.button===2)return;
   e.preventDefault();e.stopPropagation();
+  pc.anim=null;drawOne(pc);
   pc.el.setPointerCapture(e.pointerId);
   piecesG.appendChild(pc.el); // 맨 위로
   G.sel=pc;drawPieces();
@@ -396,12 +399,17 @@ function hint(){
   pc.r=found.r;pc.flip=found.flip;
   const from=pc.c.slice(),to=figToWorld(slot.c),t0=performance.now();
   piecesG.appendChild(pc.el);pc.el.classList.add('glow');SND.hint();
+  // 자리는 바로 정하고(판정용), 그림만 부드럽게 옮김
+  pc.c=to;pc.onBoard=true;
+  const anim={};pc.anim=anim;
   (function step(now){
-    const k=Math.min(1,(now-t0)/350),e=1-Math.pow(1-k,3);
-    pc.c=[from[0]+(to[0]-from[0])*e,from[1]+(to[1]-from[1])*e];drawOne(pc);
-    if(k<1)requestAnimationFrame(step);
-    else{pc.c=to;pc.onBoard=true;drawOne(pc);setTimeout(()=>pc.el.classList.remove('glow'),700);checkWin()}
+    if(pc.anim!==anim)return;
+    const k=Math.min(1,(now-t0)/350),e=1-Math.pow(1-k,3),cur=[from[0]+(to[0]-from[0])*e,from[1]+(to[1]-from[1])*e];
+    pc.el.setAttribute('points',shapeOf(pc.t,pc.r,pc.flip).map(([x,y])=>(x+cur[0]).toFixed(4)+','+(y+cur[1]).toFixed(4)).join(' '));
+    if(k<1)requestAnimationFrame(step);else{pc.anim=null;drawOne(pc)}
   })(t0);
+  setTimeout(()=>{if(pc.anim===anim){pc.anim=null;drawOne(pc)}pc.el.classList.remove('glow')},700);
+  checkWin();
 }
 
 // ===== 완성 =====
@@ -435,7 +443,7 @@ function buildMenu(){
   const box=$('cats');box.innerHTML='';
   let lastCat=null,grid=null;
   STAGES.forEach((s,i)=>{
-    if(s.cat!==lastCat){lastCat=s.cat;const h=document.createElement('div');h.className='cat';h.textContent={도형:'🔷 도형',물건:'🏠 물건',동물:'🐾 동물'}[s.cat];box.appendChild(h);grid=document.createElement('div');grid.className='grid';box.appendChild(grid)}
+    if(s.cat!==lastCat){lastCat=s.cat;const h=document.createElement('div');h.className='cat';h.textContent={도형:'🔷 도형',물건:'🏠 물건',동물:'🐾 동물',사람:'🧍 사람'}[s.cat];box.appendChild(h);grid=document.createElement('div');grid.className='grid';box.appendChild(grid)}
     const b=save.best[s.id],locked=i>save.unlocked;
     const card=document.createElement('button');card.className='card'+(locked?' locked':'');
     card.innerHTML=`<span class="num">${i+1}</span>${miniSVG(s)}<div>${s.name}</div><div class="stars">${b?starHTML(b.s):''}</div><div class="time">${b?fmt(b.t):(locked?'':'도전!')}</div>`;
@@ -447,6 +455,7 @@ function buildMenu(){
 // ===== 버튼·키 =====
 $('backBtn').onclick=()=>{G=null;buildMenu();show('menu')};
 $('rotBtn').onclick=()=>G&&rotatePiece(G.sel,1);
+$('rotLBtn').onclick=()=>G&&rotatePiece(G.sel,-1);
 $('flipBtn').onclick=()=>G&&flipPiece(G.sel);
 $('hintBtn').onclick=hint;
 function setSound(){$('soundBtn').textContent=save.muted?'🔇':'🔊'}
@@ -468,7 +477,9 @@ document.addEventListener('keydown',e=>{
   if(e.code==='KeyP'||e.code==='Escape'){togglePause();return}
   if(e.code==='KeyM'){$('soundBtn').click();return}
   if(G.paused||G.done)return;
-  if(e.code==='KeyR')rotatePiece(G.sel,e.shiftKey?-1:1);
+  if(e.code==='ArrowRight'||e.code==='KeyE'){e.preventDefault();rotatePiece(G.sel,1)}
+  else if(e.code==='ArrowLeft'||e.code==='KeyQ'){e.preventDefault();rotatePiece(G.sel,-1)}
+  else if(e.code==='KeyR')rotatePiece(G.sel,e.shiftKey?-1:1);
   else if(e.code==='KeyF')flipPiece(G.sel);
   else if(e.code==='KeyH')hint();
 });
