@@ -19,7 +19,7 @@
 | 🏒 [에어하키](https://lythean1004.github.io/binine-games/games/air-hockey/) | 스포츠 | 얼음 링크에서 컴퓨터와 에어하키 대결을 해요 |
 | 🧪 [비밀 실험실 탈출](https://lythean1004.github.io/binine-games/games/escape-lab/) | 방탈출 | 독가스가 퍼지기 전에 암호와 수수께끼를 풀고 실험실을 빠져나가요 |
 | ⭐ [별게임](https://lythean1004.github.io/binine-games/games/star-road/) | 러너 | 자동차로 도로를 달리며 별을 먹고 장애물을 피해요 |
-| 🧩 [칠교놀이](https://lythean1004.github.io/binine-games/games/tangram/) | 퍼즐 | 일곱 조각을 끌고 돌리고 뒤집어서 그림자 모양을 빈틈없이 채워요 |
+| 🧩 [칠교놀이](https://lythean1004.github.io/binine-games/games/tangram/) | 퍼즐 | 일곱 조각을 끌고 돌리고 뒤집어서 그림자 15개를 빈틈없이 채워요 |
 
 ### 배움 프로그램
 
