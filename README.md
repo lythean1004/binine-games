@@ -5,6 +5,9 @@
 
 👉 **https://lythean1004.github.io/binine-games/**
 
+모든 작품 왼쪽 아래에 **🏠 놀이터** 버튼이 있어서 다른 작품으로 바로 갈 수 있어요.
+게임 중에 실수로 나가지 않도록 한 번 누르면 안내가 뜨고, 한 번 더 눌러야 이동해요.
+
 ## 작품
 
 ### 게임
@@ -75,6 +78,9 @@ binine-games/
    - 다른 곳에 이미 배포된 작품은 `source` 대신 `url`만 적어요
 2. 복사합니다: `python tools/sync.py <slug>`
 3. 커밋하고 push하면 1~2분 뒤 사이트에 반영돼요.
+
+🏠 놀이터 버튼은 `sync.py`가 모든 작품에 자동으로 넣어요. 게임 버튼과 겹치면 그 작품에
+`"home": "top-right"`처럼 위치(top-left · top-right · bottom-left · bottom-right)를 적어 주세요.
 
 claude.ai 아티팩트 저장소(랭킹 등)를 쓰는 게임은 `"inject": ["shared/local-records.js"]`를 넣으면
 웹에서도 기록이 이 브라우저에 저장되도록 바뀌어요.

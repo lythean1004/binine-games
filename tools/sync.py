@@ -76,6 +76,10 @@ def copy_work(work: dict) -> None:
     if 'name="viewport"' not in low:
         head.append('<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">')
     head += [f'<script src="../../{s}"></script>' for s in work.get("inject", [])]
+    # 모든 작품에 "🏠 놀이터" 돌아가기 버튼 (위치는 games.json 의 "home" 으로 바꿈)
+    home = work.get("home", "bottom-left")
+    if home != "none":
+        head.append(f'<script src="../../shared/home-button.js" data-pos="{home}"></script>')
     block = "\n".join(head) + "\n"
 
     m_head = re.search(r"<head(\s[^>]*)?>", html, re.I)  # <header> 와 헷갈리지 않게
