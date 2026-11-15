@@ -66,34 +66,103 @@ const G = 1500, JVX = 170, JVY = -560, VMAX = 700, DT = 1/120;
 // wall: 벽 가시 ['L'|'R', h1, h2]
 // movers: 움직이는 가시 [가운데x, h, w, hh, 움직이는 폭, 빠르기]
 const LEVELS = [
-  { name:'달빛 지붕', top:1300,
+  { tag:'연습', name:'연습 마당', top:800, spikes:[], wall:[], movers:[],
+    coins:[[180,120],[120,220],[240,320],[120,420],[240,520],[180,640]] },
+  { tag:'응용', name:'꼬불꼬불 길', top:1500, spikes:[], wall:[], movers:[],
+    // 돌벽: 부딪혀도 안전 [x, h(아랫변), w, hh]
+    solids:[[20,220,230,20],[110,460,230,20],[20,700,230,20],[110,940,230,20],[20,1180,230,20]],
+    coins:[[295,120],[295,300],[180,360],[65,400],[65,560],[180,620],[295,640],[295,800],[180,860],[65,880],
+           [65,1040],[180,1100],[295,1120],[295,1300],[180,1400]] },
+  { tag:'배움', name:'가시 맛보기', top:1200,
+    spikes:[[130,400,100,20],[20,750,100,20],[240,750,100,20],[130,1000,100,20]],
+    wall:[], movers:[],
+    coins:[[180,200],[80,420],[280,420],[180,620],[180,780],[80,1020],[280,1020]] },
+  // 트램폴린 tramps: [가운데x, h(높이), 폭, 기울기(도)] — 기울기 +는 오른쪽 위로, -는 왼쪽 위로 튕김
+  { tag:'트램폴린', name:'통통 마당', top:1300, spikes:[], wall:[], movers:[],
+    tramps:[[260,120,70,-20],[80,400,70,25],[280,650,70,-25],[180,900,80,0]],
+    coins:[[230,280],[120,520],[230,560],[120,700],[250,780],[180,1080],[180,1200]] },
+  { tag:'트램폴린', name:'통통 가시밭', top:1600,
+    spikes:[[20,500,250,20],[90,900,250,20],[140,1200,80,20]],
+    wall:[['L',1250,1450],['R',1250,1450]], movers:[],
+    tramps:[[150,250,70,40],[250,700,70,-30],[70,1100,60,0]],
+    coins:[[120,380],[300,420],[300,560],[250,780],[55,820],[55,960],[180,1150],[180,1400],[180,1520]] },
+  { tag:'트램폴린', name:'통통 벽길', top:2000,
+    solids:[[20,300,240,20],[100,650,240,20]],
+    spikes:[[20,1350,120,20],[220,1350,120,20]],
+    wall:[],
+    movers:[[180,900,90,20,100,2.0],[180,1650,80,20,110,-2.2]],
+    tramps:[[100,120,70,30],[260,450,70,-30],[180,1200,60,0]],
+    coins:[[300,200],[300,380],[60,550],[60,720],[180,1000],[180,1300],[180,1450],[180,1800],[180,1920]] },
+  { tag:'실전', name:'달빛 지붕', top:1300,
     spikes:[[40,560,100,20],[220,560,100,20],[130,880,100,20],[20,1100,120,20],[220,1100,120,20]],
     wall:[], movers:[],
     coins:[[120,150],[240,260],[120,380],[180,500],[180,620],[70,800],[290,800],[70,960],[290,960],[180,1180]] },
-  { name:'가시 성벽', top:1900,
+  { tag:'실전', name:'가시 성벽', top:1900,
     spikes:[[100,450,160,20],[20,800,230,20],[110,1150,230,20],[40,1400,100,20],[220,1400,100,20],
             [100,1650,60,20],[200,1650,60,20]],
     wall:[['L',300,600],['R',700,1000],['L',1300,1520],['R',1300,1520]],
     movers:[],
     coins:[[70,380],[290,520],[270,720],[285,900],[65,1050],[80,1250],[180,1350],[180,1480],[230,1600],[70,1720],[290,1720],[180,1820]] },
-  { name:'바람 탑', top:2300,
+  { tag:'실전', name:'바람 탑', top:2300,
     spikes:[[20,1000,115,20],[225,1000,115,20],[130,1560,100,20]],
     wall:[['L',1100,1400],['R',1100,1400],['L',1800,2050],['R',1800,2050]],
     movers:[[180,400,120,20,90,1.6],[180,750,110,20,100,2.0],[180,1250,60,60,90,1.3],
             [120,1850,70,20,60,1.8],[240,1850,70,20,60,-1.8]],
     coins:[[180,250],[60,450],[300,450],[180,620],[180,900],[180,1060],[180,1180],[70,1450],[290,1450],[180,1700],[180,1950],[180,2150]] },
+  { tag:'최종', name:'끝판 탑', top:2450,
+    // 순서: ① 좁은 가시 기둥 통로 → ② 움직이는 가시 → ③ 꼬불꼬불 돌벽길
+    spikes:[[20,200,125,350],[215,200,125,350]], // 좁은 가시 기둥 통로 (틈 70px)
+    wall:[],
+    movers:[[180,750,90,20,100,2.0],[180,950,90,20,110,-2.3],[180,1150,90,20,110,2.6],[180,1350,70,20,110,2.4]],
+    solids:[ // 꼬불꼬불 돌벽길
+      [20,1550,245,20],[95,1770,245,20],[170,1850,20,140],[20,1990,245,20],[95,2210,245,20]],
+    coins:[[180,300],[180,450],[180,850],[180,1050],[180,1250],[180,1450],
+           [300,1500],[300,1670],[180,1680],[57,1730],[57,1870],[120,1820],[230,1820],[300,1910],[300,2070],[180,2130],
+           [57,2170],[57,2330],[180,2400]] },
 ];
 
 // ===== 물리 (검사 도구도 같은 함수를 씀) =====
 function newPlayer(){ return {x:W/2, y:-R, vx:0, vy:0, ground:true, face:1}; }
 function jump(p, dir){ p.vx = JVX*dir; p.vy = JVY; p.ground = false; p.face = dir; }
-function physStep(p){
+function physStep(p, L){
   if(p.ground) return;
   p.vy = Math.min(p.vy + G*DT, VMAX);
   p.x += p.vx*DT; p.y += p.vy*DT;
   if(p.x < WALL+R){ p.x = WALL+R; p.vx = 0; }
   if(p.x > W-WALL-R){ p.x = W-WALL-R; p.vx = 0; }
   if(p.y >= -R){ p.y = -R; p.vy = 0; p.vx = 0; p.ground = true; }
+  if(L && L.solids) for(const s of L.solids) pushOut(p, {x:s[0], y:-s[1]-s[3], w:s[2], h:s[3]});
+  if(L && L.tramps) L.tramps.forEach((tr,i)=>bounce(p, tr, i));
+}
+const BOUNCE = 1050; // 트램폴린 튕기는 힘 (점프보다 훨씬 셈)
+function trampGeo(tr){
+  const a = tr[3]*Math.PI/180, hx = Math.cos(a)*tr[2]/2, hy = Math.sin(a)*tr[2]/2;
+  return {cx:tr[0], cy:-tr[1], ax:tr[0]-hx, ay:-tr[1]-hy, bx:tr[0]+hx, by:-tr[1]+hy, nx:Math.sin(a), ny:-Math.cos(a)};
+}
+function bounce(p, tr, i){
+  const g = trampGeo(tr);
+  const ex = g.bx-g.ax, ey = g.by-g.ay, L2 = ex*ex+ey*ey;
+  const k = Math.max(0, Math.min(1, ((p.x-g.ax)*ex + (p.y-g.ay)*ey)/L2));
+  const qx = g.ax+ex*k, qy = g.ay+ey*k, dx = p.x-qx, dy = p.y-qy, d = Math.hypot(dx,dy);
+  if(d >= R) return;
+  // 윗면이든 아랫면이든 닿으면 기울어진 쪽(화살표 방향)으로 튕김 — 아래에서 닿으면 뚫고 올라감
+  p.x = qx + g.nx*R; p.y = qy + g.ny*R;
+  p.vx = g.nx*BOUNCE; p.vy = g.ny*BOUNCE; p.bounced = i;
+  if(Math.abs(g.nx) > 0.05) p.face = Math.sign(g.nx);
+}
+// 돌벽에 겹치면 밖으로 밀어내기 (위에 내려앉으면 멈춤, 머리를 박으면 위로 가던 힘이 멈춤)
+function pushOut(p, b){
+  const cx = Math.max(b.x, Math.min(p.x, b.x+b.w)), cy = Math.max(b.y, Math.min(p.y, b.y+b.h));
+  let dx = p.x-cx, dy = p.y-cy; const d = Math.hypot(dx, dy);
+  if(d >= R) return;
+  if(d > 0){ dx/=d; dy/=d; p.x += dx*(R-d); p.y += dy*(R-d); }
+  else { // 중심이 벽 안에 들어감: 가장 가까운 면으로
+    const o = [[p.x-b.x,-1,0],[b.x+b.w-p.x,1,0],[p.y-b.y,0,-1],[b.y+b.h-p.y,0,1]].sort((a,c)=>a[0]-c[0])[0];
+    dx=o[1]; dy=o[2]; p.x += dx*(o[0]+R); p.y += dy*(o[0]+R);
+  }
+  if(Math.abs(dy) > Math.abs(dx)){
+    if(dy < 0){ if(p.vy > 0){ p.vy = 0; p.vx = 0; } } else if(p.vy < 0) p.vy = 0;
+  } else if(p.vx*dx < 0) p.vx = 0;
 }
 // 위험 사각형 목록 (월드 좌표, y는 아래가 +) — t는 스테이지 시작부터 흐른 시간
 function hazards(L, t){
@@ -115,8 +184,8 @@ function hitSpike(p, L, t, extra){
 
 // ===== 기록 =====
 let save = {clear:0, best:{}};
-try{ const s = JSON.parse(localStorage.getItem('diagJump.v1')); if(s) save = Object.assign(save, s); }catch(e){}
-function store(){ try{ localStorage.setItem('diagJump.v1', JSON.stringify(save)); }catch(e){} }
+try{ const s = JSON.parse(localStorage.getItem('diagJump.v3')); if(s) save = Object.assign(save, s); }catch(e){}
+function store(){ try{ localStorage.setItem('diagJump.v3', JSON.stringify(save)); }catch(e){} }
 
 // ===== 소리 =====
 let actx = null, muted = false;
@@ -135,6 +204,7 @@ const sfx = {
   jump(){ beep(380, 620, 0.09, 'triangle', 0.07); },
   coin(){ beep(900, 1500, 0.12, 'square', 0.05); setTimeout(()=>beep(1300,1800,0.1,'square',0.04),60); },
   die(){ beep(300, 60, 0.35, 'sawtooth', 0.08); },
+  boing(){ beep(180, 520, 0.25, 'sine', 0.12); },
   clear(){ [523,659,784,1046].forEach((f,i)=>setTimeout(()=>beep(f,f*1.01,0.18,'triangle',0.08), i*110)); },
 };
 
@@ -153,11 +223,12 @@ function fit(){
 addEventListener('resize', fit); fit();
 
 // ===== 게임 상태 =====
+let squish = {};
 let mode = 'title', lv = 0, L = LEVELS[0], p, t, got, deaths, camY, deadT, parts = [], stars;
 function startLevel(i, keepDeaths){
   lv = i; L = LEVELS[i]; p = newPlayer(); t = 0; got = L.coins.map(()=>false);
   if(!keepDeaths) deaths = 0;
-  camY = -H + 40; deadT = 0; parts = []; mode = 'play';
+  camY = -H + 40; deadT = 0; parts = []; squish = {}; mode = 'play';
   show(null); hud();
 }
 function hud(){
@@ -170,8 +241,8 @@ function buildTitle(){
   LEVELS.forEach((l,i)=>{
     const b = document.createElement('button'); b.className = i===0 && save.clear===0 ? 'big' : 'stg';
     const best = save.best[i];
-    b.innerHTML = `${i+1}. ${l.name}` + (best!=null ? `<br><small>🪙 최고 ${best}/${l.coins.length}</small>` : '');
-    b.disabled = i > save.clear;
+    b.innerHTML = `<small>${l.tag}</small><br>${i+1}. ${l.name}` + (best!=null ? `<br><small>🪙 최고 ${best}/${l.coins.length}</small>` : '');
+    // 모든 스테이지 처음부터 열림 (v4.4)
     b.onclick = ()=>startLevel(i);
     box.appendChild(b);
   });
@@ -194,7 +265,7 @@ function clearLevel(){
   save.best[lv] = Math.max(save.best[lv]||0, n); save.clear = Math.max(save.clear, lv+1); store();
   const last = lv === LEVELS.length-1;
   document.getElementById('clearT').textContent = last ? '🏆 모두 통과!' : '🚩 통과!';
-  document.getElementById('clearP').innerHTML = `${L.name}<br>🪙 ${n} / ${L.coins.length}  ·  💀 ${deaths}번  ·  ⏱ ${t.toFixed(1)}초`
+  document.getElementById('clearP').innerHTML = `${L.tag} · ${L.name}<br>🪙 ${n} / ${L.coins.length}  ·  💀 ${deaths}번  ·  ⏱ ${t.toFixed(1)}초`
     + (n === L.coins.length ? '<br>✨ 코인 전부 모았어요!' : '');
   document.getElementById('bNext').textContent = last ? '처음 화면' : '다음 스테이지';
   show('sClear');
@@ -207,7 +278,9 @@ function update(){
     if(deadT <= 0){ const d = deaths; startLevel(lv, true); deaths = d; hud(); }
     return;
   }
-  t += DT; physStep(p);
+  t += DT; physStep(p, L);
+  if(p.bounced != null){ squish[p.bounced] = 0.25; sfx.boing(); p.bounced = null; }
+  for(const k in squish) squish[k] = Math.max(0, squish[k]-DT);
   if(hitSpike(p, L, t)){ die(); return; }
   L.coins.forEach((c,i)=>{
     if(!got[i] && Math.hypot(p.x-c[0], p.y+c[1]) < R+10){ got[i] = true; sfx.coin(); hud();
@@ -258,6 +331,29 @@ function draw(){
   cx.fillStyle = '#fff5'; cx.font = '11px Jua'; cx.textAlign = 'left';
   for(let h=200; h<L.top; h+=200) cx.fillText(h/10+'m', WALL+3, -h);
   // 가시
+  // 트램폴린
+  (L.tramps||[]).forEach((tr,i)=>{
+    const sq = squish[i]||0, a = tr[3]*Math.PI/180, w = tr[2];
+    cx.save(); cx.translate(tr[0], -tr[1]); cx.rotate(a);
+    cx.strokeStyle = '#9aa0b8'; cx.lineWidth = 3; // 다리
+    cx.beginPath(); cx.moveTo(-w/2+6, 2); cx.lineTo(-w/2+2, 14); cx.moveTo(w/2-6, 2); cx.lineTo(w/2-2, 14); cx.stroke();
+    cx.fillStyle = '#2b2f45'; cx.fillRect(-w/2, -2, w, 6); // 틀
+    cx.fillStyle = '#3fd0a0'; // 천 (튕기면 출렁)
+    cx.beginPath(); cx.moveTo(-w/2, -2); cx.quadraticCurveTo(0, -2 + sq*40, w/2, -2); cx.lineTo(w/2, -6); cx.quadraticCurveTo(0, -6 + sq*40, -w/2, -6); cx.fill();
+    cx.fillStyle = '#ff7a59'; cx.beginPath(); cx.arc(-w/2, -3, 4, 0, 7); cx.arc(w/2, -3, 4, 0, 7); cx.fill();
+    // 튕기는 방향 화살표
+    cx.globalAlpha = 0.55 + 0.3*Math.sin(now*5+i); cx.fillStyle = '#3fd0a0';
+    cx.beginPath(); cx.moveTo(0, -30); cx.lineTo(-8, -18); cx.lineTo(8, -18); cx.fill();
+    cx.fillRect(-2.5, -19, 5, 8); cx.globalAlpha = 1;
+    cx.restore();
+  });
+  // 돌벽
+  for(const s of (L.solids||[])){ const x=s[0], y=-s[1]-s[3], w=s[2], h=s[3];
+    cx.fillStyle = '#6a5a8c'; cx.fillRect(x, y, w, h);
+    cx.fillStyle = '#8a7ab0'; cx.fillRect(x, y, w, 4);
+    cx.fillStyle = '#4e4270';
+    for(let yy=y+10; yy<y+h; yy+=10) cx.fillRect(x, yy, w, 1.5);
+    for(let yy=y, r=0; yy<y+h; yy+=10, r++) for(let xx=x+(r%2?10:20); xx<x+w; xx+=20) cx.fillRect(xx, yy, 1.5, Math.min(10, y+h-yy)); }
   for(const b of hazards(L, t)) drawSpikes(b);
   // 코인
   L.coins.forEach((c,i)=>{ if(got[i]) return;
