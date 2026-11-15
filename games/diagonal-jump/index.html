@@ -1,0 +1,378 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com data:; img-src 'self' data: blob:; media-src 'self' data: blob:; connect-src 'self'; object-src 'none'; base-uri 'self'; form-action 'none'">
+<meta name="referrer" content="strict-origin-when-cross-origin">
+<script src="../../shared/home-button.js" data-pos="bottom-left"></script>
+
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
+<title>대각선 점프</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Jua&display=swap" rel="stylesheet">
+<style>
+  html,body{margin:0;height:100%;background:#0b0f1f;overflow:hidden;font-family:'Jua',sans-serif;color:#fff;
+    touch-action:none;user-select:none;-webkit-user-select:none}
+  #wrap{position:fixed;inset:0;display:flex;align-items:center;justify-content:center}
+  canvas{display:block;background:#141a33;border-radius:10px;box-shadow:0 0 30px #0008}
+  #hud{position:absolute;left:0;right:0;top:0;display:flex;justify-content:space-between;align-items:center;
+    padding:8px 10px;font-size:18px;pointer-events:none;text-shadow:0 2px 3px #000}
+  #hud .btns{pointer-events:auto;display:flex;gap:6px}
+  .ib{background:#0006;border:2px solid #fff4;color:#fff;border-radius:10px;font:inherit;font-size:16px;
+    padding:3px 8px;cursor:pointer}
+  #stageBox{position:relative}
+  .screen{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;
+    background:#0b0f1fcc;text-align:center;gap:10px;border-radius:10px;padding:20px;box-sizing:border-box}
+  .screen h1{margin:0;font-size:40px;color:#ffd54a;text-shadow:0 3px 0 #a33}
+  .screen p{margin:0;font-size:17px;line-height:1.5;color:#dde}
+  .big{background:#e0453a;border:none;color:#fff;font:inherit;font-size:22px;border-radius:14px;padding:10px 26px;
+    cursor:pointer;box-shadow:0 4px 0 #8a2018}
+  .big:active{transform:translateY(3px);box-shadow:0 1px 0 #8a2018}
+  .stages{display:flex;gap:8px;flex-wrap:wrap;justify-content:center}
+  .stg{background:#2b3466;border:2px solid #5560a0;color:#fff;font:inherit;font-size:16px;border-radius:12px;
+    padding:8px 12px;cursor:pointer;min-width:84px}
+  .stg[disabled]{opacity:.4;cursor:default}
+  .hide{display:none!important}
+  kbd{background:#fff2;border-radius:5px;padding:0 6px}
+</style>
+</head>
+<body>
+<div id="wrap"><div id="stageBox">
+  <canvas id="cv"></canvas>
+  <div id="hud">
+    <div id="hudL">스테이지 1</div>
+    <div id="hudC">🪙 0/0</div>
+    <div class="btns"><button class="ib" id="bPause">⏸</button><button class="ib" id="bMute">🔊</button></div>
+  </div>
+  <div class="screen" id="sTitle">
+    <h1>🥷 대각선 점프</h1>
+    <p><kbd>←</kbd> <kbd>→</kbd> 를 누르면 그쪽 대각선 위로 휙!<br>공중에서도 계속 뛸 수 있어요.<br>가시에 닿으면 스테이지 처음부터.<br>맨 위 <b style="color:#ffd54a">출구선</b>을 넘으면 통과!</p>
+    <p style="font-size:14px;color:#aab">폰: 화면 왼쪽/오른쪽 누르기 · P 일시정지 · M 소리</p>
+    <div class="stages" id="stageBtns"></div>
+  </div>
+  <div class="screen hide" id="sPause"><h1>⏸ 쉬는 중</h1><p>P 또는 Esc로 계속</p>
+    <button class="big" id="bResume">계속하기</button><button class="stg" id="bHome">처음 화면</button></div>
+  <div class="screen hide" id="sClear"><h1 id="clearT">통과!</h1><p id="clearP"></p>
+    <button class="big" id="bNext">다음 스테이지</button><button class="stg" id="bHome2">처음 화면</button></div>
+</div></div>
+<script>
+'use strict';
+// ===== 기본 값 =====
+const W = 360, H = 640, WALL = 20, R = 12;
+const G = 1500, JVX = 170, JVY = -560, VMAX = 700, DT = 1/120;
+
+// ===== 스테이지 (h = 땅에서 잰 높이, x = 왼쪽 끝) =====
+// spikes: 가시 블록 [x, h(아랫변), w, hh]
+// wall: 벽 가시 ['L'|'R', h1, h2]
+// movers: 움직이는 가시 [가운데x, h, w, hh, 움직이는 폭, 빠르기]
+const LEVELS = [
+  { name:'달빛 지붕', top:1300,
+    spikes:[[40,560,100,20],[220,560,100,20],[130,880,100,20],[20,1100,120,20],[220,1100,120,20]],
+    wall:[], movers:[],
+    coins:[[120,150],[240,260],[120,380],[180,500],[180,620],[70,800],[290,800],[70,960],[290,960],[180,1180]] },
+  { name:'가시 성벽', top:1900,
+    spikes:[[100,450,160,20],[20,800,230,20],[110,1150,230,20],[40,1400,100,20],[220,1400,100,20],
+            [100,1650,60,20],[200,1650,60,20]],
+    wall:[['L',300,600],['R',700,1000],['L',1300,1520],['R',1300,1520]],
+    movers:[],
+    coins:[[70,380],[290,520],[270,720],[285,900],[65,1050],[80,1250],[180,1350],[180,1480],[230,1600],[70,1720],[290,1720],[180,1820]] },
+  { name:'바람 탑', top:2300,
+    spikes:[[20,1000,115,20],[225,1000,115,20],[130,1560,100,20]],
+    wall:[['L',1100,1400],['R',1100,1400],['L',1800,2050],['R',1800,2050]],
+    movers:[[180,400,120,20,90,1.6],[180,750,110,20,100,2.0],[180,1250,60,60,90,1.3],
+            [120,1850,70,20,60,1.8],[240,1850,70,20,60,-1.8]],
+    coins:[[180,250],[60,450],[300,450],[180,620],[180,900],[180,1060],[180,1180],[70,1450],[290,1450],[180,1700],[180,1950],[180,2150]] },
+];
+
+// ===== 물리 (검사 도구도 같은 함수를 씀) =====
+function newPlayer(){ return {x:W/2, y:-R, vx:0, vy:0, ground:true, face:1}; }
+function jump(p, dir){ p.vx = JVX*dir; p.vy = JVY; p.ground = false; p.face = dir; }
+function physStep(p){
+  if(p.ground) return;
+  p.vy = Math.min(p.vy + G*DT, VMAX);
+  p.x += p.vx*DT; p.y += p.vy*DT;
+  if(p.x < WALL+R){ p.x = WALL+R; p.vx = 0; }
+  if(p.x > W-WALL-R){ p.x = W-WALL-R; p.vx = 0; }
+  if(p.y >= -R){ p.y = -R; p.vy = 0; p.vx = 0; p.ground = true; }
+}
+// 위험 사각형 목록 (월드 좌표, y는 아래가 +) — t는 스테이지 시작부터 흐른 시간
+function hazards(L, t){
+  const out = [];
+  for(const s of L.spikes) out.push({x:s[0], y:-s[1]-s[3], w:s[2], h:s[3]});
+  for(const m of L.movers){ const cx = m[0] + m[4]*Math.sin(t*m[5]); out.push({x:cx-m[2]/2, y:-m[1]-m[3], w:m[2], h:m[3], mv:true}); }
+  for(const w of L.wall) out.push({x: w[0]==='L' ? WALL : W-WALL-16, y:-w[2], w:16, h:w[2]-w[1], wall:w[0]});
+  return out;
+}
+function circleRect(px,py,r,b){
+  const cx = Math.max(b.x, Math.min(px, b.x+b.w)), cy = Math.max(b.y, Math.min(py, b.y+b.h));
+  const dx = px-cx, dy = py-cy; return dx*dx+dy*dy < r*r;
+}
+function hitSpike(p, L, t, extra){
+  const r = R - 3 + (extra||0); // 가시는 조금 너그럽게
+  for(const b of hazards(L,t)) if(circleRect(p.x,p.y,r,b)) return true;
+  return false;
+}
+
+// ===== 기록 =====
+let save = {clear:0, best:{}};
+try{ const s = JSON.parse(localStorage.getItem('diagJump.v1')); if(s) save = Object.assign(save, s); }catch(e){}
+function store(){ try{ localStorage.setItem('diagJump.v1', JSON.stringify(save)); }catch(e){} }
+
+// ===== 소리 =====
+let actx = null, muted = false;
+try{ muted = localStorage.getItem('diagJump.mute') === '1'; }catch(e){}
+function beep(f1, f2, dur, type, vol){
+  if(muted) return;
+  try{
+    actx = actx || new (window.AudioContext||window.webkitAudioContext)();
+    const o = actx.createOscillator(), g = actx.createGain(), n = actx.currentTime;
+    o.type = type||'square'; o.frequency.setValueAtTime(f1, n); o.frequency.exponentialRampToValueAtTime(f2, n+dur);
+    g.gain.setValueAtTime(vol||0.08, n); g.gain.exponentialRampToValueAtTime(0.0001, n+dur);
+    o.connect(g); g.connect(actx.destination); o.start(n); o.stop(n+dur);
+  }catch(e){}
+}
+const sfx = {
+  jump(){ beep(380, 620, 0.09, 'triangle', 0.07); },
+  coin(){ beep(900, 1500, 0.12, 'square', 0.05); setTimeout(()=>beep(1300,1800,0.1,'square',0.04),60); },
+  die(){ beep(300, 60, 0.35, 'sawtooth', 0.08); },
+  clear(){ [523,659,784,1046].forEach((f,i)=>setTimeout(()=>beep(f,f*1.01,0.18,'triangle',0.08), i*110)); },
+};
+
+// ===== 화면 =====
+const cv = document.getElementById('cv'), cx = cv.getContext('2d');
+let scale = 1;
+function fit(){
+  const s = Math.min(innerWidth / W, innerHeight / H);
+  scale = s; const dpr = window.devicePixelRatio||1;
+  cv.style.width = W*s+'px'; cv.style.height = H*s+'px';
+  cv.width = Math.round(W*s*dpr); cv.height = Math.round(H*s*dpr);
+  cx.setTransform(s*dpr,0,0,s*dpr,0,0);
+  document.getElementById('stageBox').style.width = W*s+'px';
+  document.getElementById('hud').style.fontSize = Math.max(14, 18*s)+'px';
+}
+addEventListener('resize', fit); fit();
+
+// ===== 게임 상태 =====
+let mode = 'title', lv = 0, L = LEVELS[0], p, t, got, deaths, camY, deadT, parts = [], stars;
+function startLevel(i, keepDeaths){
+  lv = i; L = LEVELS[i]; p = newPlayer(); t = 0; got = L.coins.map(()=>false);
+  if(!keepDeaths) deaths = 0;
+  camY = -H + 40; deadT = 0; parts = []; mode = 'play';
+  show(null); hud();
+}
+function hud(){
+  document.getElementById('hudL').textContent = `${lv+1}. ${L.name}` + (deaths ? ` 💀${deaths}` : '');
+  document.getElementById('hudC').textContent = `🪙 ${got.filter(Boolean).length}/${L.coins.length}`;
+}
+function show(id){ for(const s of ['sTitle','sPause','sClear']) document.getElementById(s).classList.toggle('hide', s!==id); }
+function buildTitle(){
+  const box = document.getElementById('stageBtns'); box.innerHTML = '';
+  LEVELS.forEach((l,i)=>{
+    const b = document.createElement('button'); b.className = i===0 && save.clear===0 ? 'big' : 'stg';
+    const best = save.best[i];
+    b.innerHTML = `${i+1}. ${l.name}` + (best!=null ? `<br><small>🪙 최고 ${best}/${l.coins.length}</small>` : '');
+    b.disabled = i > save.clear;
+    b.onclick = ()=>startLevel(i);
+    box.appendChild(b);
+  });
+  show('sTitle'); mode = 'title';
+}
+function press(dir){
+  if(mode !== 'play' || deadT > 0) return;
+  jump(p, dir); sfx.jump();
+  for(let k=0;k<5;k++) parts.push({x:p.x, y:p.y+8, vx:(Math.random()-0.5)*60 - dir*40, vy:Math.random()*60, life:0.35, c:'#9aa8ff'});
+}
+function die(){
+  deadT = 0.7; deaths++; sfx.die();
+  for(let k=0;k<18;k++){ const a = Math.random()*6.28, s = 80+Math.random()*160;
+    parts.push({x:p.x, y:p.y, vx:Math.cos(a)*s, vy:Math.sin(a)*s, life:0.6, c: k%2 ? '#222' : '#e0453a'}); }
+  hud();
+}
+function clearLevel(){
+  mode = 'clear'; sfx.clear();
+  const n = got.filter(Boolean).length;
+  save.best[lv] = Math.max(save.best[lv]||0, n); save.clear = Math.max(save.clear, lv+1); store();
+  const last = lv === LEVELS.length-1;
+  document.getElementById('clearT').textContent = last ? '🏆 모두 통과!' : '🚩 통과!';
+  document.getElementById('clearP').innerHTML = `${L.name}<br>🪙 ${n} / ${L.coins.length}  ·  💀 ${deaths}번  ·  ⏱ ${t.toFixed(1)}초`
+    + (n === L.coins.length ? '<br>✨ 코인 전부 모았어요!' : '');
+  document.getElementById('bNext').textContent = last ? '처음 화면' : '다음 스테이지';
+  show('sClear');
+}
+
+function update(){
+  if(mode !== 'play') return;
+  if(deadT > 0){
+    deadT -= DT; stepParts();
+    if(deadT <= 0){ const d = deaths; startLevel(lv, true); deaths = d; hud(); }
+    return;
+  }
+  t += DT; physStep(p);
+  if(hitSpike(p, L, t)){ die(); return; }
+  L.coins.forEach((c,i)=>{
+    if(!got[i] && Math.hypot(p.x-c[0], p.y+c[1]) < R+10){ got[i] = true; sfx.coin(); hud();
+      for(let k=0;k<8;k++){ const a=k*0.785; parts.push({x:c[0], y:-c[1], vx:Math.cos(a)*90, vy:Math.sin(a)*90, life:0.4, c:'#ffd54a'}); } }
+  });
+  if(p.y < -L.top){ clearLevel(); return; }
+  stepParts();
+  const want = Math.min(p.y - H*0.58, -H + 40);
+  camY += (Math.max(want, -L.top - 140) - camY) * 0.12;
+}
+function stepParts(){
+  for(const q of parts){ q.x += q.vx*DT; q.y += q.vy*DT; q.vy += 400*DT; q.life -= DT; }
+  parts = parts.filter(q=>q.life>0);
+}
+
+// ===== 그리기 =====
+function draw(){
+  const now = performance.now()/1000;
+  // 하늘
+  const prog = Math.min(1, Math.max(0, (-camY - H) / Math.max(1, L.top)));
+  const g = cx.createLinearGradient(0,0,0,H);
+  g.addColorStop(0, `hsl(${235-prog*20},45%,${10+prog*4}%)`); g.addColorStop(1, `hsl(${255-prog*30},40%,${20+prog*6}%)`);
+  cx.fillStyle = g; cx.fillRect(0,0,W,H);
+  // 별 (천천히 움직이는 먼 배경)
+  cx.fillStyle = '#fff';
+  for(let i=0;i<40;i++){ const sx = (i*97)%W, sy = ((i*173) - camY*0.15) % H; cx.globalAlpha = 0.3 + 0.3*Math.sin(now*2+i);
+    cx.fillRect(sx, (sy+H)%H, 2, 2); }
+  cx.globalAlpha = 1;
+  // 달
+  cx.fillStyle = '#fff6c8'; cx.beginPath(); cx.arc(280, 90 - camY*0.03 % 40, 26, 0, 7); cx.fill();
+  cx.fillStyle = `hsl(${235-prog*20},45%,${12+prog*4}%)`; cx.beginPath(); cx.arc(268, 82 - camY*0.03 % 40, 24, 0, 7); cx.fill();
+
+  cx.save(); cx.translate(0, -camY);
+  // 벽
+  cx.fillStyle = '#2a2440';
+  cx.fillRect(0, camY, WALL, H); cx.fillRect(W-WALL, camY, WALL, H);
+  cx.fillStyle = '#3a3358';
+  for(let y = Math.floor(camY/40)*40; y < camY+H; y+=40){ cx.fillRect(2, y+2, WALL-4, 18); cx.fillRect(W-WALL+2, y+22, WALL-4, 18); }
+  // 땅
+  cx.fillStyle = '#3b2a4a'; cx.fillRect(0, 0, W, 60);
+  cx.fillStyle = '#5a3e6e'; cx.fillRect(0, 0, W, 6);
+  // 출구선
+  const ey = -L.top;
+  cx.strokeStyle = '#ffd54a'; cx.lineWidth = 4; cx.setLineDash([14,10]); cx.lineDashOffset = -now*30;
+  cx.beginPath(); cx.moveTo(WALL, ey); cx.lineTo(W-WALL, ey); cx.stroke(); cx.setLineDash([]);
+  cx.fillStyle = '#ffd54a'; cx.font = '20px Jua'; cx.textAlign = 'center'; cx.fillText('🚩 출구', W/2, ey - 12);
+  // 높이 눈금
+  cx.fillStyle = '#fff5'; cx.font = '11px Jua'; cx.textAlign = 'left';
+  for(let h=200; h<L.top; h+=200) cx.fillText(h/10+'m', WALL+3, -h);
+  // 가시
+  for(const b of hazards(L, t)) drawSpikes(b);
+  // 코인
+  L.coins.forEach((c,i)=>{ if(got[i]) return;
+    const sx = Math.abs(Math.cos(now*3 + i)); cx.save(); cx.translate(c[0], -c[1]); cx.scale(Math.max(0.15,sx),1);
+    cx.fillStyle = '#f5b301'; cx.beginPath(); cx.arc(0,0,9,0,7); cx.fill();
+    cx.fillStyle = '#ffe27a'; cx.beginPath(); cx.arc(0,0,6,0,7); cx.fill();
+    cx.fillStyle = '#c98a00'; cx.fillRect(-1.5,-4,3,8); cx.restore(); });
+  // 파편
+  for(const q of parts){ cx.globalAlpha = Math.min(1, q.life*2.5); cx.fillStyle = q.c; cx.fillRect(q.x-2, q.y-2, 4, 4); }
+  cx.globalAlpha = 1;
+  // 자객
+  if(!(deadT > 0)) drawNinja(p, now);
+  cx.restore();
+
+  // 처음 안내
+  if(mode==='play' && p.ground && t < 0.01 && deadT<=0){
+    cx.fillStyle = '#fffc'; cx.font = '22px Jua'; cx.textAlign = 'center';
+    cx.fillText('← → 를 눌러 점프!', W/2, H-110);
+    cx.globalAlpha = 0.25; cx.fillStyle = '#fff'; cx.font = '60px Jua';
+    cx.fillText('◀', 60, H/2); cx.fillText('▶', W-60, H/2); cx.globalAlpha = 1;
+  }
+  if(deadT > 0){ cx.fillStyle = `rgba(224,69,58,${deadT*0.4})`; cx.fillRect(0,0,W,H); }
+  // 진행 막대
+  const pr = Math.min(1, Math.max(0, -p.y / L.top));
+  cx.fillStyle = '#0006'; cx.fillRect(W-8, 50, 4, H-100);
+  cx.fillStyle = '#ffd54a'; cx.fillRect(W-8, 50 + (H-100)*(1-pr), 4, (H-100)*pr);
+}
+function drawSpikes(b){
+  cx.fillStyle = b.mv ? '#6b2a3a' : '#3c3c4c';
+  const n = 8; // 가시 크기
+  if(b.wall){
+    cx.fillStyle = '#c9ccd8';
+    for(let y=b.y; y<b.y+b.h-1; y+=n*1.5){
+      cx.beginPath();
+      if(b.wall==='L'){ cx.moveTo(b.x, y); cx.lineTo(b.x+b.w, y+n*0.75); cx.lineTo(b.x, y+n*1.5); }
+      else { cx.moveTo(b.x+b.w, y); cx.lineTo(b.x, y+n*0.75); cx.lineTo(b.x+b.w, y+n*1.5); }
+      cx.fill();
+    }
+    return;
+  }
+  const ix = b.x+5, iy = b.y+5, iw = b.w-10, ih = b.h-10;
+  cx.fillRect(ix, iy, iw, ih);
+  cx.fillStyle = '#c9ccd8';
+  for(let x=b.x; x<b.x+b.w-1; x+=n*1.25){ // 위·아래
+    const w = Math.min(n*1.25, b.x+b.w-x);
+    cx.beginPath(); cx.moveTo(x, iy); cx.lineTo(x+w/2, b.y); cx.lineTo(x+w, iy); cx.fill();
+    cx.beginPath(); cx.moveTo(x, iy+ih); cx.lineTo(x+w/2, b.y+b.h); cx.lineTo(x+w, iy+ih); cx.fill();
+  }
+  for(let y=b.y; y<b.y+b.h-1; y+=n*1.25){ // 양옆
+    const h = Math.min(n*1.25, b.y+b.h-y);
+    cx.beginPath(); cx.moveTo(ix, y); cx.lineTo(b.x, y+h/2); cx.lineTo(ix, y+h); cx.fill();
+    cx.beginPath(); cx.moveTo(ix+iw, y); cx.lineTo(b.x+b.w, y+h/2); cx.lineTo(ix+iw, y+h); cx.fill();
+  }
+}
+function drawNinja(p, now){
+  cx.save(); cx.translate(p.x, p.y);
+  const f = p.face;
+  // 목도리 (속도 반대쪽으로 날림)
+  cx.strokeStyle = '#e0453a'; cx.lineWidth = 4; cx.lineCap = 'round';
+  const tx = -p.vx*0.06 - f*10, ty = -p.vy*0.03 + 4;
+  cx.beginPath(); cx.moveTo(-f*4, -2);
+  cx.quadraticCurveTo(tx*0.5, ty*0.5 + Math.sin(now*14)*3, tx, ty + Math.sin(now*14+1)*4); cx.stroke();
+  // 몸
+  const tilt = p.ground ? 0 : Math.max(-0.4, Math.min(0.4, p.vx/500 + p.vy/2500*f));
+  cx.rotate(tilt);
+  cx.fillStyle = '#1a1a24'; cx.beginPath(); cx.arc(0, 0, R, 0, 7); cx.fill();
+  // 눈 띠
+  cx.fillStyle = '#f1d2b0'; cx.fillRect(-9, -5, 18, 6);
+  cx.fillStyle = '#111'; cx.fillRect(f*2 - 1, -4, 3, 4); cx.fillRect(f*7 - 1, -4, 3, 4);
+  // 머리띠
+  cx.fillStyle = '#e0453a'; cx.fillRect(-11, -9, 22, 3);
+  cx.restore();
+}
+
+// ===== 루프 =====
+let acc = 0, last = performance.now();
+function loop(now){
+  acc += Math.min(0.1, (now - last)/1000); last = now;
+  while(acc >= DT){ update(); acc -= DT; }
+  if(p) draw();
+  requestAnimationFrame(loop);
+}
+
+// ===== 조작 =====
+function togglePause(){
+  if(mode === 'play'){ mode = 'pause'; show('sPause'); }
+  else if(mode === 'pause'){ mode = 'play'; show(null); last = performance.now(); }
+}
+function toggleMute(){ muted = !muted; document.getElementById('bMute').textContent = muted ? '🔇' : '🔊';
+  try{ localStorage.setItem('diagJump.mute', muted ? '1' : '0'); }catch(e){} }
+addEventListener('keydown', e=>{
+  if(e.repeat) return;
+  if(e.code==='ArrowLeft' || e.code==='KeyA'){ press(-1); e.preventDefault(); }
+  else if(e.code==='ArrowRight' || e.code==='KeyD'){ press(1); e.preventDefault(); }
+  else if(e.code==='KeyP' || e.code==='Escape') togglePause();
+  else if(e.code==='KeyM') toggleMute();
+  else if((e.code==='Enter' || e.code==='Space') && mode==='clear') document.getElementById('bNext').click();
+});
+cv.addEventListener('pointerdown', e=>{
+  const r = cv.getBoundingClientRect(); press(e.clientX - r.left < r.width/2 ? -1 : 1); e.preventDefault();
+});
+document.getElementById('bPause').onclick = togglePause;
+document.getElementById('bResume').onclick = togglePause;
+document.getElementById('bMute').onclick = toggleMute;
+document.getElementById('bHome').onclick = buildTitle;
+document.getElementById('bHome2').onclick = buildTitle;
+document.getElementById('bNext').onclick = ()=>{ lv < LEVELS.length-1 ? startLevel(lv+1) : buildTitle(); };
+document.getElementById('bMute').textContent = muted ? '🔇' : '🔊';
+
+// 검사 도구용
+window.__dj = {LEVELS, newPlayer, jump, physStep, hitSpike, DT, R, W, WALL};
+
+p = newPlayer(); got = []; deaths = 0; camY = -H+40; t = 0;
+buildTitle();
+requestAnimationFrame(loop);
+</script>
+</body>
+</html>

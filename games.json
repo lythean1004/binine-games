@@ -106,6 +106,17 @@
       "files": ["index.html"]
     },
     {
+      "slug": "diagonal-jump",
+      "title": "대각선 점프",
+      "emoji": "🥷",
+      "color": "#4338ca",
+      "category": "game",
+      "genre": "점프맵",
+      "summary": "← → 를 누를 때마다 자객이 대각선 위로 휙! 가시를 피해 코인을 모으며 3개 스테이지 꼭대기 출구까지 올라가요.",
+      "source": "../대각선 점프",
+      "files": ["index.html"]
+    },
+    {
       "slug": "braille",
       "title": "훈맹정음 점자 변환기",
       "emoji": "⠓",

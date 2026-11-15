@@ -23,6 +23,7 @@
 | 🧪 [비밀 실험실 탈출](https://lythean1004.github.io/binine-games/games/escape-lab/) | 방탈출 | 독가스가 퍼지기 전에 암호와 수수께끼를 풀고 실험실을 빠져나가요 |
 | ⭐ [별게임](https://lythean1004.github.io/binine-games/games/star-road/) | 러너 | 자동차로 도로를 달리며 별을 먹고 장애물을 피해요 |
 | 🧩 [칠교놀이](https://lythean1004.github.io/binine-games/games/tangram/) | 퍼즐 | 일곱 조각을 끌고 돌리고 뒤집어서 그림자 15개를 빈틈없이 채워요 |
+| 🥷 [대각선 점프](https://lythean1004.github.io/binine-games/games/diagonal-jump/) | 점프맵 | ← → 로 자객이 대각선 위로 뛰며 가시를 피해 코인을 모아요 |
 
 ### 배움 프로그램
 
