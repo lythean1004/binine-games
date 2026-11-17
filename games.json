@@ -128,6 +128,17 @@
       "files": ["index.html"]
     },
     {
+      "slug": "bangul-battle",
+      "title": "방울 대작전",
+      "emoji": "🫧",
+      "color": "#14b8a6",
+      "category": "game",
+      "genre": "액션",
+      "summary": "꼬마 마법사가 마법봉으로 방울을 쏴서 악당을 가두고 펑! 터뜨려요. 10스테이지 끝에서 태엽 마왕이 기다려요.",
+      "source": "../방울 대작전",
+      "files": ["index.html"]
+    },
+    {
       "slug": "braille",
       "title": "훈맹정음 점자 변환기",
       "emoji": "⠓",
