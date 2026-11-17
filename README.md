@@ -24,6 +24,7 @@
 | ⭐ [별게임](https://lythean1004.github.io/binine-games/games/star-road/) | 러너 | 자동차로 도로를 달리며 별을 먹고 장애물을 피해요 |
 | 🧩 [칠교놀이](https://lythean1004.github.io/binine-games/games/tangram/) | 퍼즐 | 일곱 조각을 끌고 돌리고 뒤집어서 그림자 15개를 빈틈없이 채워요 |
 | 🥷 [대각선 점프](https://lythean1004.github.io/binine-games/games/diagonal-jump/) | 점프맵 | ← → 로 자객이 대각선 위로 뛰며 가시를 피해 코인을 모아요 |
+| 🎵 [리듬 톡톡](https://lythean1004.github.io/binine-games/games/rhythm-toktok/) | 리듬 | 하늘에서 떨어지는 4분음표를 박자에 맞춰 누르며 노래 3곡을 깨요 |
 
 ### 배움 프로그램
 

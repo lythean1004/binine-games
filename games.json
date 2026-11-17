@@ -117,6 +117,17 @@
       "files": ["index.html"]
     },
     {
+      "slug": "rhythm-toktok",
+      "title": "리듬 톡톡",
+      "emoji": "🎵",
+      "color": "#ff8a5c",
+      "category": "game",
+      "genre": "리듬",
+      "summary": "하늘에서 떨어지는 4분음표를 박자에 맞춰 톡! 직접 만든 노래 3곡을 하나씩 깨 나가요.",
+      "source": "../리듬 게임",
+      "files": ["index.html"]
+    },
+    {
       "slug": "braille",
       "title": "훈맹정음 점자 변환기",
       "emoji": "⠓",
