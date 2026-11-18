@@ -15,7 +15,8 @@
   html, body { margin: 0; height: 100%; overflow: hidden; background: #0b0820; font-family: 'Jua', sans-serif; color: #fff; touch-action: manipulation; user-select: none; -webkit-user-select: none; }
   canvas { position: fixed; inset: 0; width: 100%; height: 100%; display: block; }
   #hud { position: fixed; top: 0; left: 0; right: 0; display: flex; justify-content: space-between; align-items: flex-start; padding: 10px 12px; pointer-events: none; gap: 8px; }
-  .pill { background: rgba(0,0,0,.38); border-radius: 14px; padding: 6px 12px; font-size: 18px; line-height: 1.2; backdrop-filter: blur(4px); }
+  .pill { background: rgba(0,0,0,.38); border-radius: 14px; padding: 6px 12px; font-size: 18px; line-height: 1.2; backdrop-filter: blur(4px); white-space: nowrap; }
+  #lavaPill { position: fixed; top: 74px; left: 50%; transform: translateX(-50%); pointer-events: none; transition: background .2s; }
   #mid { text-align: center; }
   #zoneName { font-size: 14px; opacity: .85; }
   #right { display: flex; gap: 6px; align-items: flex-start; }
@@ -28,10 +29,14 @@
   .overlay h1 { font-size: 44px; margin: 0; text-shadow: 0 0 18px #ff6bd6, 0 0 30px #6bd0ff; }
   .overlay p { margin: 0; font-size: 18px; line-height: 1.55; opacity: .92; }
   .big { pointer-events: auto; border: 0; font-family: inherit; font-size: 24px; padding: 12px 34px; border-radius: 18px; background: linear-gradient(135deg, #ff6bd6, #7a6bff); color: #fff; cursor: pointer; box-shadow: 0 0 20px rgba(255,107,214,.5); margin-top: 8px; }
+  .modes { display: flex; gap: 12px; flex-wrap: wrap; justify-content: center; }
+  .hardBtn { background: linear-gradient(135deg, #ff9a1a, #e0241b); box-shadow: 0 0 20px rgba(255,90,20,.55); }
+  .ghost { background: rgba(255,255,255,.15); box-shadow: none; }
+  .overlay p.small { font-size: 15px; opacity: .8; }
   .hidden { display: none !important; }
   #touchHint { position: fixed; bottom: 16px; left: 0; right: 0; display: flex; justify-content: space-between; padding: 0 22px; pointer-events: none; font-size: 40px; opacity: .45; }
   @media (pointer: fine) { #touchHint { display: none; } }
-  @media (max-width: 500px) { .pill { font-size: 15px; padding: 5px 9px; } .overlay h1 { font-size: 34px; } }
+  @media (max-width: 500px) { .pill { font-size: 15px; padding: 5px 9px; } #zoneName { font-size: 12px; } .btn { width: 34px; } #hud { padding: 8px; gap: 5px; } #right { gap: 4px; } #lavaPill { top: 64px; } .overlay h1 { font-size: 34px; } }
 </style>
 </head>
 <body>
@@ -46,6 +51,7 @@
     <button class="btn" id="muteBtn" title="소리 (M)">🔊</button>
   </div>
 </div>
+<div class="pill hidden" id="lavaPill">🌋</div>
 <div id="bar"><div id="barFill"></div></div>
 <div id="toast"></div>
 <div id="touchHint"><span>◀</span><span>▶</span></div>
@@ -56,7 +62,11 @@
   <p>다음 계단이 있는 쪽 방향키를 눌러요 <b>← →</b><br>📱 휴대폰은 화면 왼쪽 / 오른쪽을 눌러요</p>
   <p>❤️ 목숨 3개 · 틀리면 2~3칸 아래로 떨어져요<br>🚩 깃발에 닿으면 저장! 목숨을 다 잃어도 깃발부터 다시</p>
   <p id="bestTitle"></p>
-  <button class="big" id="startBtn">시작하기</button>
+  <div class="modes">
+    <button class="big" id="startBtn">🙂 보통 모드</button>
+    <button class="big hardBtn" id="hardBtn">🔥 어려움 모드</button>
+  </div>
+  <p class="small">🔥 어려움 모드: 아래에서 🌋 용암이 차올라요. 용암이 발에 닿으면 깃발부터 다시!</p>
 </div>
 
 <div class="overlay hidden" id="pauseScreen">
@@ -68,7 +78,10 @@
 <div class="overlay hidden" id="endScreen">
   <h1>⭐ 별에 탔어요! ⭐</h1>
   <p id="endText"></p>
-  <button class="big" id="againBtn">다시 하기</button>
+  <div class="modes">
+    <button class="big" id="againBtn">다시 하기</button>
+    <button class="big ghost" id="menuBtn">모드 고르기</button>
+  </div>
 </div>
 
 <script>
@@ -83,10 +96,16 @@ const ZONES = [
 ];
 const zoneOf = i => i >= 180 ? 3 : i >= 120 ? 2 : i >= 60 ? 1 : 0;
 const BEST_KEY = 'stairs-to-star-best';
+// 어려움 모드: 아래에서 용암이 차오름 (구역마다 1초에 몇 칸씩)
+const LAVA_SPEED = [1.6, 2.0, 2.4, 2.8];
+const LAVA_START_GAP = 6;   // 시작·깃발에서 다시 할 때 용암은 6칸 아래
+const LAVA_MAX_GAP = 10;    // 용암은 아무리 멀어도 10칸 아래까지만 떨어져 있음
+let hard = false;
 
 // ---------- 저장 ----------
-function loadBest() { try { const v = parseFloat(localStorage.getItem(BEST_KEY)); return isFinite(v) ? v : null; } catch (e) { return null; } }
-function saveBest(v) { try { localStorage.setItem(BEST_KEY, String(v)); } catch (e) {} }
+const bestKey = () => hard ? BEST_KEY + '-hard' : BEST_KEY;
+function loadBest(h = hard) { try { const v = parseFloat(localStorage.getItem(h ? BEST_KEY + '-hard' : BEST_KEY)); return isFinite(v) ? v : null; } catch (e) { return null; } }
+function saveBest(v) { try { localStorage.setItem(bestKey(), String(v)); } catch (e) {} }
 
 // ---------- 소리 ----------
 let actx = null, muted = false;
@@ -155,12 +174,14 @@ let jump = null;      // {t0, fx, fy}
 let blinkUntil = 0, endT0 = 0, face = 1;
 let camX = 0, camY = 0;
 let lastZone = 0;
+let lava = -LAVA_START_GAP, lavaHits = 0;
 
 function stepPos(i) { return { x: xs[i] * SW, y: -i * SH }; }
 
 function newGame() {
   genStairs(); p = 0; lives = 3; flag = 0; elapsed = 0; started = false; falls = 0;
   fall = null; jump = null; lastZone = 0; face = 1;
+  lava = -LAVA_START_GAP; lavaHits = 0;
   const s = stepPos(0); camX = s.x; camY = s.y;
   updateHud();
 }
@@ -194,11 +215,24 @@ function finishFall() {
     p = Math.max(0, p - back);
     toast(`${back}칸 아래부터 다시!`);
   } else {
-    p = flag; lives = 3; sfx.reset();
+    backToFlag();
     toast(flag > 0 ? '🚩 깃발부터 다시! ❤️ 다시 3개' : '처음부터 다시! ❤️ 다시 3개');
   }
   lastZone = zoneOf(p);
   fall = null; blinkUntil = performance.now() + 700;
+  updateHud();
+}
+
+function backToFlag() {
+  p = flag; lives = 3; lava = flag - LAVA_START_GAP; sfx.reset();
+}
+
+// 어려움 모드: 용암이 발에 닿으면 깃발부터 다시
+function lavaHit() {
+  lavaHits++; falls++; jump = null;
+  backToFlag(); lastZone = zoneOf(p);
+  blinkUntil = performance.now() + 900;
+  toast('🌋 용암에 닿았어요! 깃발부터 다시');
   updateHud();
 }
 
@@ -209,7 +243,8 @@ function winGame() {
 function showEnd() {
   mode = 'end';
   const best = loadBest();
-  let line = `⏱️ 걸린 시간: <b>${elapsed.toFixed(1)}초</b><br>💥 떨어진 횟수: ${falls}번`;
+  let line = (hard ? '🔥 <b>어려움 모드</b> 성공!<br>' : '') + `⏱️ 걸린 시간: <b>${elapsed.toFixed(1)}초</b><br>💥 떨어진 횟수: ${falls - lavaHits}번`;
+  if (hard) line += `<br>🌋 용암에 닿은 횟수: ${lavaHits}번`;
   if (best === null || elapsed < best) { saveBest(elapsed); line += '<br>🏆 새 최고 기록!'; }
   else line += `<br>🏆 최고 기록: ${best.toFixed(1)}초`;
   document.getElementById('endText').innerHTML = line;
@@ -234,7 +269,12 @@ function updateHud() {
 })();
 let toastTimer = 0;
 function toast(msg) { const t = $('toast'); t.textContent = msg; t.style.opacity = 1; clearTimeout(toastTimer); toastTimer = setTimeout(() => t.style.opacity = 0, 1200); }
-function showBestOnTitle() { const b = loadBest(); $('bestTitle').textContent = b !== null ? `🏆 최고 기록: ${b.toFixed(1)}초` : ''; }
+function showBestOnTitle() {
+  const b = loadBest(false), h = loadBest(true), parts = [];
+  if (b !== null) parts.push(`🏆 보통 ${b.toFixed(1)}초`);
+  if (h !== null) parts.push(`🔥 어려움 ${h.toFixed(1)}초`);
+  $('bestTitle').textContent = parts.join('  ·  ');
+}
 
 // ---------- 입력 ----------
 function setPause(on) {
@@ -242,7 +282,8 @@ function setPause(on) {
   else if (!on && mode === 'pause') { mode = 'play'; $('pauseScreen').classList.add('hidden'); lastFrame = performance.now(); }
 }
 function toggleMute() { muted = !muted; $('muteBtn').textContent = muted ? '🔇' : '🔊'; }
-function start() { ac(); newGame(); mode = 'play'; $('titleScreen').classList.add('hidden'); $('endScreen').classList.add('hidden'); lastFrame = performance.now(); }
+function start(h = hard) { hard = !!h; ac(); newGame(); $('timer').textContent = '0.0초'; mode = 'play'; $('titleScreen').classList.add('hidden'); $('endScreen').classList.add('hidden'); $('lavaPill').classList.toggle('hidden', !hard); lastFrame = performance.now(); }
+function toTitle() { mode = 'title'; hard = false; newGame(); $('timer').textContent = '0.0초'; showBestOnTitle(); $('endScreen').classList.add('hidden'); $('lavaPill').classList.add('hidden'); $('titleScreen').classList.remove('hidden'); }
 
 window.addEventListener('keydown', e => {
   const c = e.code;
@@ -250,10 +291,11 @@ window.addEventListener('keydown', e => {
   else if (c === 'ArrowRight' || c === 'KeyD') { e.preventDefault(); if (!e.repeat) press(1); }
   else if (c === 'KeyP' || c === 'Escape') { setPause(mode === 'play'); }
   else if (c === 'KeyM') toggleMute();
-  else if ((c === 'Enter' || c === 'Space') && (mode === 'title' || mode === 'end')) { e.preventDefault(); start(); }
+  else if ((c === 'Enter' || c === 'Space') && (mode === 'title' || mode === 'end')) { e.preventDefault(); start(mode === 'end' ? hard : false); }
 });
 cv.addEventListener('pointerdown', e => { e.preventDefault(); press(e.clientX < W / 2 ? -1 : 1); });
-$('startBtn').onclick = start; $('againBtn').onclick = start;
+$('startBtn').onclick = () => start(false); $('hardBtn').onclick = () => start(true);
+$('againBtn').onclick = () => start(hard); $('menuBtn').onclick = toTitle;
 $('resumeBtn').onclick = () => setPause(false);
 $('pauseBtn').onclick = () => setPause(mode === 'play');
 $('muteBtn').onclick = toggleMute;
@@ -492,12 +534,50 @@ function playerDrawPos(now) {
   return s;
 }
 
+// ---------- 용암 (어려움 모드) ----------
+function drawLava(now) {
+  const top = toScreen(0, -lava * SH + SH * 0.15).y;
+  const gap = p - lava;
+  // 가까우면 화면 가장자리가 빨갛게
+  if (gap < 3 && mode === 'play') {
+    const a = (1 - gap / 3) * (0.35 + 0.15 * Math.sin(now / 90));
+    const v = ctx.createRadialGradient(W / 2, H / 2, Math.min(W, H) * 0.35, W / 2, H / 2, Math.max(W, H) * 0.75);
+    v.addColorStop(0, 'rgba(255,0,0,0)'); v.addColorStop(1, `rgba(255,30,0,${a})`);
+    ctx.fillStyle = v; ctx.fillRect(0, 0, W, H);
+  }
+  if (top > H + 20) return;
+  const g = ctx.createLinearGradient(0, top, 0, Math.min(H, top + H * 0.5));
+  g.addColorStop(0, '#ffd23f'); g.addColorStop(0.12, '#ff7a1a'); g.addColorStop(0.5, '#d62a12'); g.addColorStop(1, '#5c0d06');
+  ctx.save();
+  ctx.shadowColor = '#ff6a00'; ctx.shadowBlur = 30;
+  ctx.fillStyle = g; ctx.beginPath(); ctx.moveTo(0, H + 10);
+  for (let x = 0; x <= W + 20; x += 20) ctx.lineTo(x, top + Math.sin(x / 38 + now / 260) * 6 + Math.sin(x / 17 - now / 180) * 3);
+  ctx.lineTo(W + 20, H + 10); ctx.closePath(); ctx.fill();
+  ctx.shadowBlur = 0;
+  // 보글보글 거품
+  ctx.fillStyle = 'rgba(255,220,90,.8)';
+  for (let k = 0; k < 9; k++) {
+    const bx = ((k * 137 + now * 0.02 * (k % 3 + 1)) % (W + 40)) - 20;
+    const ph = ((now / 900 + k * 0.37) % 1);
+    ctx.globalAlpha = 1 - ph; ctx.beginPath(); ctx.arc(bx, top + 10 - ph * 22, 3 + (k % 3) * 2, 0, 7); ctx.fill();
+  }
+  ctx.restore();
+}
+
 // ---------- 주 반복 ----------
 let lastFrame = performance.now();
 function frame(now) {
   const dt = Math.min(0.05, (now - lastFrame) / 1000); lastFrame = now;
   if (mode === 'play' && started) { elapsed += dt; $('timer').textContent = elapsed.toFixed(1) + '초'; }
   if (fall && mode === 'play' && now - fall.t0 > 650) finishFall();
+  if (hard && mode === 'play' && started) {
+    lava += LAVA_SPEED[zoneOf(Math.min(p, TOTAL - 1))] * dt;
+    lava = Math.max(lava, p - LAVA_MAX_GAP);
+    if (!fall && lava >= p - 0.15) lavaHit();
+    const gap = Math.max(0, p - lava);
+    $('lavaPill').textContent = `🔥어려움 · 🌋 ${gap.toFixed(1)}칸 아래`;
+    $('lavaPill').style.background = gap < 3 ? 'rgba(220,38,38,.75)' : 'rgba(0,0,0,.38)';
+  }
 
   let pp = playerDrawPos(now), kidRot = 0, kidAlpha = 1, starOff = { x: 0, y: 0 };
   if (fall) {
@@ -529,6 +609,7 @@ function frame(now) {
     drawKid(s.x, s.y + 2, face, now, kidAlpha, kidRot);
   }
   if (mode === 'title') { const s = toScreen(stepPos(0).x, stepPos(0).y); drawKid(s.x, s.y + 2, 1, now); }
+  if (hard && mode !== 'title') drawLava(now);
   requestAnimationFrame(frame);
 }
 
