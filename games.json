@@ -139,6 +139,17 @@
       "files": ["index.html"]
     },
     {
+      "slug": "stairs-to-star",
+      "title": "별까지 계단",
+      "emoji": "🪜",
+      "color": "#d946ef",
+      "category": "game",
+      "genre": "계단",
+      "summary": "← → 로 지그재그 계단을 올라 네온 도시, 거대 나무, 구름 위를 지나 꼭대기의 별을 타러 가요.",
+      "source": "../계단 오르기",
+      "files": ["index.html"]
+    },
+    {
       "slug": "braille",
       "title": "훈맹정음 점자 변환기",
       "emoji": "⠓",

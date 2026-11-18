@@ -26,6 +26,7 @@
 | 🥷 [대각선 점프](https://lythean1004.github.io/binine-games/games/diagonal-jump/) | 점프맵 | ← → 로 자객이 대각선 위로 뛰며 가시를 피해 코인을 모아요 |
 | 🎵 [리듬 톡톡](https://lythean1004.github.io/binine-games/games/rhythm-toktok/) | 리듬 | 하늘에서 떨어지는 4분음표를 박자에 맞춰 누르며 노래 3곡을 깨요 |
 | 🫧 [방울 대작전](https://lythean1004.github.io/binine-games/games/bangul-battle/) | 액션 | 방울로 악당을 가두고 터뜨려 아이템을 모으며 10스테이지와 보스를 깨요 |
+| 🪜 [별까지 계단](https://lythean1004.github.io/binine-games/games/stairs-to-star/) | 계단 | ← → 로 네온 도시, 거대 나무, 구름 위를 지나 별까지 200칸 계단을 올라요 |
 
 ### 배움 프로그램
 
